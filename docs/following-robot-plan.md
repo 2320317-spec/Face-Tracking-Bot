@@ -688,6 +688,8 @@ The pad needs `touch-action: none` in its CSS, or the phone scrolls the page ins
 
 ### 5.10 Uno sketch
 
+> The sketch now lives in the repository at [`uno/motor_controller/motor_controller.ino`](../uno/motor_controller/motor_controller.ino) — **that file is the real one**. It also has a built-in wheel test (`t` in the Serial Monitor); see [uno/README.md](../uno/README.md). The listing below is the reference version.
+
 Board: **Arduino Uno**. Upload from the laptop with the Arduino IDE (Bluetooth socket empty, `follow.py` not running — only one program can hold the port).
 
 ```cpp

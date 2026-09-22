@@ -41,7 +41,7 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 
 ## Next
 
-1. **Step 7 — Uno sketch:** upload `uno/motor_controller/`, bench-test each wheel with the wheels off the ground (needs motor power: 18650s, 6×AA or a 9 V battery for a quick test).
+1. **Step 7 — Uno sketch:** written and compiling (16% of the Uno's memory). Left to do: upload it from the Arduino IDE and run the built-in wheel test (`t` in the Serial Monitor) with the wheels off the ground. Needs motor power — 18650s, or 6×AA / a 9 V battery for a quick direction check.
 2. **Step 9 — assemble** the chassis, and mount the camera ~20 cm up, tilted ~30°.
 3. **Step 10 — calibrate** the distance thresholds and `KP` on the floor, then re-tune HSV in the demo room.
 4. **Step 11 — autostart + WiFi hotspot** so the demo needs no laptop and no school WiFi.
