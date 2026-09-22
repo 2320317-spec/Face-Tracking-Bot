@@ -44,6 +44,15 @@ Try each step yourself first. The build plan has a finished reference for each p
 - **Target lost:** keep the last command for a few frames, then stop.
 - **Done when:** moving the target left, right, closer and farther changes the command the way the plan describes, without flickering at the thresholds.
 - **Plan:** 1 (concept), 5.5 (control logic).
+- **Files:** the brain itself lives in `brain.py` (settings, `Follower`, wheel mixing), so step 4 and the simulator share it — change a setting once, both use it.
+
+### Step 4b — `04b_simulator.py`: watch the robot drive (no hardware)
+
+- **Goal:** a top-down virtual robot, shaped like the real one (wheels and camera at the front, free wheel at the back), driven by the same `brain.py`. Its camera is simulated, so the whole loop runs: see → decide → drive → see again.
+- **Controls:** drag the mouse to move the target · `a` target walks by itself · `m` color / face · `r` reset · space pause · `q` quit.
+- **On screen:** the camera's view cone, rings at the resume / stop / back-up distances, the path, the robot's camera view, the command and both wheel speeds.
+- **Use it to:** try new settings in `brain.py` (`KP`, speeds, bands) and see the effect before the real robot exists.
+- **Simplified:** flat floor, no wheel slip, instant motors, 0.1 s camera delay, top view only (ignores camera tilt).
 
 ### Step 5 — `05_face_detect.py`: faces instead of colors
 

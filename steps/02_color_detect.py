@@ -11,8 +11,9 @@ import numpy as np
 CAMERA = 0             # which camera? 0 = first, 1 = second
 W, H = 480, 360        # size the robot works at
 
-COLOR = "green"        # which color to look for (a name from COLORS)
+COLOR = "yellow"       # which color to look for (a name from COLORS)
 COLORS = {             # HSV low, HSV high  (OpenCV hue goes 0-179)
+    "yellow": ((22, 120, 100), (38, 255, 255)),
     "green":  ((40, 100, 80),  (80, 255, 255)),
     "orange": ((10, 150, 100), (25, 255, 255)),
 }

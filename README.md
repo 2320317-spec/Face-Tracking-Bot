@@ -81,9 +81,9 @@ On Linux or the Pi, use `.venv/bin/python` instead of `.venv\Scripts\python`. In
 **On the PC** — details in [steps/README.md](steps/README.md)
 
 - [x] 1. Live camera feed + FPS counter
-- [ ] 2. Live color detection — box, center `x`, width `w`
-- [ ] 3. HSV tuner with sliders
-- [ ] 4. Decision logic — `x` and `w` → `fwd turn` command
+- [x] 2. Live color detection — box, center `x`, width `w`
+- [x] 3. HSV tuner with sliders
+- [x] 4. Decision logic — `x` and `w` → `fwd turn` command (+ top-view simulator)
 - [ ] 5. Face detection with YuNet
 - [ ] 6. Combine everything into `pi/follow.py` + the phone dashboard
 
