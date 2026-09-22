@@ -38,6 +38,8 @@ if [ ! -d "$VENV" ]; then
 fi
 
 echo "== 4/6  Python packages (OpenCV is a ~40 MB download) =="
+echo "   (red 'dependency conflicts' lines about types-... packages are harmless: those come with"
+echo "    the system and aren't used by FollowBot. What matters is the 'Successfully installed' line.)"
 "$VENV/bin/pip" install --upgrade pip
 "$VENV/bin/pip" install -r requirements-pi.txt
 

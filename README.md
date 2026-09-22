@@ -90,7 +90,7 @@ On Linux or the Pi, use `.venv/bin/python` instead of `.venv\Scripts\python`. In
 **On the robot** — details in the [build plan](docs/following-robot-plan.md#7-build-sequence)
 
 - [ ] 7. Uno motor sketch + bench test
-- [ ] 8. Raspberry Pi setup
+- [x] 8. Raspberry Pi setup
 - [ ] 9. Assemble the robot
 - [ ] 10. Calibrate and floor-test
 - [ ] 11. Autostart + hotspot for the demo

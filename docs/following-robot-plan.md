@@ -850,12 +850,17 @@ Latency matters more than raw frame rate: reacting to a 300 ms-old frame at 30 f
 
 **Already built in:** MJPG capture, newest-frame capture thread with a 1-frame buffer, processing at 480×360, live view encoded only while someone watches (and shrunk to 320×240), no desktop environment.
 
-**What to expect on a Pi 4:**
+**Measured on this project's Pi 4** (`tools/pi_check.py`, September 2026):
 
-| Mode | Expected | Limited by |
+| Part | Time per frame | Means |
 |---|---|---|
-| Color | 25–30 fps | The camera |
-| Face | ~13–15 fps | YuNet, ~60 ms per 480×360 frame (OpenCV Zoo measured 6.2 ms at 160×120 on a Pi 4B; the cost scales with pixel count) |
+| Shrink camera frame to 480×360 | 2.1 ms | |
+| Color detection | 2.6 ms | color mode is limited only by the camera |
+| Face detection (YuNet) | ~50 ms | face mode tops out at **~19 fps** |
+| Face recognition (SFace), per face | ~65 ms | SMART only runs it every 5 frames, or while searching |
+| Webcam (YUYV, 640×480) | — | **~20 fps in good light, ~12 fps in dim light** — the webcam slows down to expose longer |
+
+So in good light, face mode runs at ~19 fps and color mode at ~20 fps (camera-limited). In a dim room the camera drops to ~12 fps: add light, or lock the webcam's frame rate (see its `exposure_dynamic_framerate` / `exposure_auto_priority` setting in `v4l2-ctl --list-ctrls`).
 
 **If face mode is too slow:**
 
@@ -930,7 +935,7 @@ Test each stage alone. Do not skip ahead.
 - **WiFi on the Pi.** The dashboard needs the camera and the decisions, and both live on the Pi. The robot brings its own hotspot so the demo doesn't depend on the venue's network.
 - **Proportional steering.** A 2WD robot centers by rotating; rotation plus camera latency makes fixed-speed turns overshoot. Turn rate proportional to error converges instead of hunting.
 - **Three-state distance control with hysteresis.** No judder at the stop point, and backing up restores the standoff instead of stopping at the edge of "too close".
-- **Processing at 480×360, measured, not guessed.** The face detector needs faces ≥ ~26 px wide. At 320×240 face mode would give up at ~1.6 m; at 480×360 it reaches ~2.4 m for ~13–15 fps on a Pi 4.
+- **Processing at 480×360, measured, not guessed.** The face detector needs faces ≥ ~26 px wide. At 320×240 face mode would give up at ~1.6 m; at 480×360 it reaches ~2.4 m, and still runs at ~19 fps on the Pi 4 (measured).
 - **Boots stopped.** Nothing moves until a person presses Start.
 
 The honest tradeoff: one more board, a serial protocol to maintain, and a network dependency for control — mitigated by the hotspot, the failsafes, and the optional physical button.

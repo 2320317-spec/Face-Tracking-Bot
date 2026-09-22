@@ -78,7 +78,11 @@ Your GitHub repository is **private**, so the Pi has to prove it's allowed to re
 
 **Option B — keep it private and use a token.** On GitHub: your profile picture → *Settings* → *Developer settings* → *Personal access tokens* → *Fine-grained tokens* → *Generate new token*. Give it access to **only this repository**, with **Contents: Read-only**. Copy the token. When `git clone` asks for a password below, paste the token (not your GitHub password).
 
-Then, on the Pi:
+Then, on the Pi — first make sure Git is installed (Lite may not have it), then download the code:
+
+```bash
+sudo apt install -y git
+```
 
 ```bash
 git clone https://github.com/2320317-spec/Face-Tracking-Bot.git ~/Face_Tracking_Bot
@@ -133,6 +137,7 @@ Webcam not found? Try `--camera 1`, and list the cameras with `v4l2-ctl --list-d
 | `Permission denied` when logging in | Wrong username or password — they're the ones you set in Imager. |
 | `git clone` asks for a password and fails | Private repo: use a token (step 6, option B), not your GitHub password. |
 | setup_pi.sh stops with an error | Run it again — it skips what's already done. If it stops at the same place, send the error to Claude. |
+| Red `ERROR: pip's dependency resolver...` about `types-flask-migrate` / `types-seaborn` | Harmless — system packages FollowBot doesn't use. If the script ends with **Done!** and you see `Successfully installed ... opencv-python-headless`, it worked. |
 | pi_check: "under-voltage" | Power supply too weak — use a 5 V 3 A supply. |
 | pi_check: temperature above 70 C | Add the heatsink / fan. |
 | pi_check: face mode below 10 fps | Usually heat or power — see the two rows above. |

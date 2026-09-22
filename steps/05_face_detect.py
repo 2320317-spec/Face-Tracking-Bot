@@ -85,7 +85,7 @@ LEARN_EVERY = 5        # While following you, take another fingerprint every 5 f
                        # (e.g. two people crossing) - so this is also how fast a mix-up gets caught.
                        #   Lower = catches mix-ups sooner, but more work for the Pi.
 LEARN_MAX = 5          # Keep up to 5 fingerprints of you (different angles = more reliable).
-                       # Speed: one fingerprint takes ~5 ms on a laptop, ~70 ms on the Pi.
+                       # Speed: one fingerprint takes ~5-10 ms on a laptop, ~65 ms on the Pi 4 (measured).
 
 
 # ---- Settings: face details ------------------------------------------------------------
