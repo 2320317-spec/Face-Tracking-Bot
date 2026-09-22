@@ -1,0 +1,49 @@
+# =============================================================================
+# followbot.service - makes the Pi run the robot by itself, from the moment it
+# boots. No laptop, no logging in, no typing a command.
+# =============================================================================
+# Do NOT copy this file to /etc/systemd/system/ by hand: the __MARKERS__ below
+# have to be filled in with your username and paths first. Run this instead:
+#
+#     sudo bash ~/Face_Tracking_Bot/deploy/install_service.sh
+#
+# It fills them in, installs the file and starts the service.
+#
+# The robot still boots STOPPED. Starting on boot only means the camera, the
+# brain and the dashboard are running - nothing moves until you press Engage.
+# =============================================================================
+
+[Unit]
+Description=FollowBot - vision, decisions and the phone dashboard
+After=network.target
+Wants=network-online.target
+
+# If it crashes over and over (webcam unplugged, Uno missing), give up after
+# 5 tries in 60 seconds instead of restarting forever and filling the log.
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=__USER__
+WorkingDirectory=__REPO__/pi
+
+# Command-line options live in /etc/default/followbot, so you can add or remove
+# --dry without touching this file. Change them with:
+#     sudo nano /etc/default/followbot  &&  sudo systemctl restart followbot
+EnvironmentFile=-/etc/default/followbot
+Environment=PYTHONUNBUFFERED=1
+ExecStart=__VENV__/bin/python follow.py $FOLLOWBOT_ARGS
+
+# Crashed? Start it again 5 seconds later. A robot that dies mid-demo and comes
+# back on its own is much better than one that needs a laptop to revive.
+Restart=always
+RestartSec=5
+
+# Everything follow.py prints (fps, mode, state, command) goes to the system log:
+#     journalctl -u followbot -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

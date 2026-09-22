@@ -27,9 +27,13 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 
 ## Hardware
 
-**Have:** Raspberry Pi 4, USB webcam, Arduino Uno, LAFVIN TB6612 motor shield, 2 motors with wheels, 16 GB SD card, ESP32 (spare, unused).
+**Have:** Raspberry Pi 4, USB webcam, LAFVIN TB6612 motor shield, 2 motors with wheels **mounted on the chassis**, 4× 18650 cells in **two 2-slot holders** (7.4 V each — one runs the robot, one is a spare), 16 GB SD card, ESP32 (spare, unused).
 
-**Still needed:** 2× 18650 cells + holder + charger, 2WD chassis with caster, 5 V 3 A power bank (the 3000 mAh 2.1 A one is too weak for the robot), M3 standoffs, camera mount.
+**Away right now:** the **Arduino Uno** — step 7 waits for it.
+
+**Still needed:** 18650 charger, 5 V 3 A power bank (the 3000 mAh 2.1 A one is too weak for the robot), M3 standoffs, camera mount.
+
+> **Never use all four 18650s in series.** 4 cells = 14.8 V (16.8 V charged), and the TB6612 chip's limit is 15 V. Two cells, 7.4 V — that's what `MAX_PWM = 200` in the Uno sketch is calculated for.
 
 ## Things to know
 
@@ -44,7 +48,7 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 1. **Step 7 — Uno sketch:** written and compiling (16% of the Uno's memory). Left to do: upload it from the Arduino IDE and run the built-in wheel test (`t` in the Serial Monitor) with the wheels off the ground. Needs motor power — 18650s, or 6×AA / a 9 V battery for a quick direction check.
 2. **Step 9 — assemble** the chassis, and mount the camera ~20 cm up, tilted ~30°.
 3. **Step 10 — calibrate** the distance thresholds and `KP` on the floor, then re-tune HSV in the demo room.
-4. **Step 11 — autostart + WiFi hotspot** so the demo needs no laptop and no school WiFi.
+4. **Step 11 — autostart + WiFi hotspot:** scripts written (`deploy/install_service.sh`, `deploy/hotspot.sh`) and tested against stubs on the laptop. Left to do: run both on the Pi and confirm a reboot comes back by itself.
 
 ## Ideas parked for later
 

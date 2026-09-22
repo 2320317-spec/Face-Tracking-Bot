@@ -118,6 +118,58 @@ Webcam not found? Try `--camera 1`, and list the cameras with `v4l2-ctl --list-d
 
 ---
 
+## Step 9 — Start on boot (Pi)
+
+So the robot needs no laptop at all: power it up, wait, and the dashboard is there.
+
+```bash
+cd ~/Face_Tracking_Bot
+sudo bash deploy/install_service.sh
+```
+
+It finds your username and paths by itself, and picks `--dry` automatically if no Uno is plugged in yet. When it finishes it prints the dashboard address and the handful of commands you'll actually use.
+
+**The one thing to remember:** while the service is running it holds the webcam and port 8000, so running `pi/follow.py` by hand will fail until you stop it:
+
+```bash
+sudo systemctl stop followbot        # I want to run it by hand
+sudo systemctl start followbot       # hand it back
+journalctl -u followbot -f           # watch it live (Ctrl+C to stop watching)
+```
+
+Once the Uno is connected, drop the `--dry`:
+
+```bash
+sudo nano /etc/default/followbot     # make it  FOLLOWBOT_ARGS=""
+sudo systemctl restart followbot
+```
+
+The robot still boots **STOPPED**. Starting on boot only means the camera, the brain and the dashboard are running — nothing moves until you press **Engage** on the page.
+
+## Step 10 — The robot's own WiFi (Pi)
+
+School WiFi usually stops one device from reaching another, and often wants a login page — so at the demo the robot makes its own network instead.
+
+```bash
+sudo bash deploy/hotspot.sh status     # what is it on now?
+sudo bash deploy/hotspot.sh boot-on    # next boot: start the hotspot
+```
+
+Then on demo day: power the Pi, wait about 40 seconds, join the WiFi called **FollowBot** on your phone, and open **http://10.42.0.1:8000**.
+
+Afterwards, to make it join your home WiFi again:
+
+```bash
+sudo bash deploy/hotspot.sh boot-off
+sudo reboot
+```
+
+- **Change the password** at the top of `deploy/hotspot.sh` first. Anyone who joins that WiFi can drive your robot.
+- `hotspot.sh on` switches over *immediately*, which **cuts any SSH session you have over the home WiFi**. That's expected, not a crash. Get back in by joining `FollowBot` and using `ssh <user>@10.42.0.1`, or with a network cable. `boot-on` / `boot-off` are the safer pair — they only change what happens next boot.
+- If the hotspot refuses to start, the WiFi country is probably unset: `sudo raspi-config` → *Localisation Options* → *WLAN Country* → **PH**.
+
+---
+
 ## Everyday use
 
 | To... | Run (on the Pi) |
