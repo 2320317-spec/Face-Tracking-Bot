@@ -1,41 +1,78 @@
+# =============================================================================
 # Step 2 - live color detection
+# =============================================================================
 # Finds the biggest blob of one color, draws a box around it, and shows its
-# center x and width w - the two numbers the robot will steer and drive by.
-# Run:  .venv\Scripts\python steps\02_color_detect.py      Quit: press q in the video window
+# center x and width w - the two numbers the robot will steer and drive by:
+#   x = where it is across the picture (left 0 ... 480 right) -> which way to turn
+#   w = how wide it looks, in pixels (bigger = closer)       -> how far away it is
+#
+# How it finds the color (inside find_color):
+#   1. BGR -> HSV       HSV separates the color itself from how bright it is
+#   2. inRange          mask: white where the color matches, black elsewhere
+#   3. opening          erase tiny white specks (noise)
+#   4. findContours     outline every white blob
+#   5. biggest blob     usually your target (the closest one)
+#   6. boundingRect     the box around it: x, y, w, h
+#
+# Run:  .venv\Scripts\python steps\02_color_detect.py
+# Keys: q = quit (click the video window first)
+# =============================================================================
 import sys
 import time
 
 import cv2
 import numpy as np
 
-CAMERA = 0             # which camera? 0 = first, 1 = second
+
+# ---- Settings ----------------------------------------------------------------
+CAMERA = 0             # which camera: 0 = first, 1 = second
 W, H = 480, 360        # size the robot works at
 
-COLOR = "yellow"       # which color to look for (a name from COLORS)
-COLORS = {             # HSV low, HSV high  (OpenCV hue goes 0-179)
-    "yellow": ((22, 120, 100), (38, 255, 255)),
+COLOR = "yellow"       # which color to look for - one of the names in COLORS
+
+# HSV color ranges: (lowest H, S, V), (highest H, S, V). A pixel matches if all
+# three of its values are inside the range.
+#   H = hue: WHICH color. OpenCV goes 0-179 (half of the usual 0-360 degrees):
+#       red 0-10 and 170-179, orange 10-25, yellow 25-35, green 40-80, blue 100-130
+#   S = saturation: how STRONG the color is. 0 = gray/white, 255 = pure color.
+#       A high minimum ignores pale things (walls, skin, paper).
+#   V = value: how BRIGHT. 0 = black, 255 = bright. A minimum ignores dark shadows.
+# To find your own numbers, use tools\hsv_tune.py (sliders + click-to-read).
+COLORS = {
+    "yellow": ((22, 120, 100), (38, 255, 255)),   # 22 keeps out orange/skin/wood (below ~20)
     "green":  ((40, 100, 80),  (80, 255, 255)),
     "orange": ((10, 150, 100), (25, 255, 255)),
 }
-MIN_AREA = 300                       # blobs smaller than this many pixels are noise
-KERNEL = np.ones((3, 3), np.uint8)   # small square used to clean specks out of the mask
+
+MIN_AREA = 300         # Blobs smaller than 300 pixels (about 17x17) are treated as noise.
+                       #   Random specks get boxed -> raise it.
+                       #   Target lost when far away -> lower it.
+
+KERNEL = np.ones((3, 3), np.uint8)   # 3x3 square used by "opening" to erase specks.
+                                     # Bigger (5x5) erases more noise but also eats small targets.
 
 
+# ---- Finding the color -------------------------------------------------------
 def find_color(frame):
-    """Return (box, mask). box = (x, y, w, h) of the biggest COLOR blob, or None."""
+    """Returns (box, mask).
+    box  = (x, y, w, h) of the biggest COLOR blob, or None if there isn't one
+    mask = black and white picture: white = matches the color (shown in its own window)"""
     lo, hi = COLORS[COLOR]
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, np.array(lo), np.array(hi))       # white where the color matches
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, KERNEL)     # remove tiny specks
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)                 # 1. to HSV
+    mask = cv2.inRange(hsv, np.array(lo), np.array(hi))           # 2. white where it matches
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, KERNEL)         # 3. erase tiny specks
+    # 4. outlines of the white blobs. RETR_EXTERNAL = outer outlines only (ignore holes),
+    #    CHAIN_APPROX_SIMPLE = store just the corner points (less memory)
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     if not contours:
-        return None, mask
-    biggest = max(contours, key=cv2.contourArea)              # closest / largest object
+        return None, mask                                         # nothing of that color at all
+    biggest = max(contours, key=cv2.contourArea)                  # 5. the largest blob
     if cv2.contourArea(biggest) < MIN_AREA:
-        return None, mask
-    return cv2.boundingRect(biggest), mask
+        return None, mask                                         # even the biggest is just noise
+    return cv2.boundingRect(biggest), mask                        # 6. its box: (x, y, w, h)
 
 
+# ---- Open the camera (same as step 1) ------------------------------------------
 cap = cv2.VideoCapture(CAMERA)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
@@ -47,6 +84,8 @@ fps = 0.0
 frames = 0
 t0 = time.time()
 
+
+# ---- The loop ------------------------------------------------------------------
 while True:
     ok, frame = cap.read()
     if not ok:
@@ -55,16 +94,16 @@ while True:
 
     box, mask = find_color(frame)
 
-    # White line = middle of the frame. The robot will turn to put the target on it.
+    # White line = the middle of the picture. The robot will turn to put the target on it.
     cv2.line(frame, (W // 2, 0), (W // 2, H), (255, 255, 255), 1)
 
     if box is not None:
-        x, y, w, h = box
-        cx = x + w // 2                                    # center x of the target
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-        cv2.circle(frame, (cx, y + h // 2), 4, (0, 0, 255), -1)
-        cv2.putText(frame, f"x={cx}  w={w}", (x, max(y - 8, 15)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+        x, y, w, h = box                   # x, y = top-left corner; w, h = width, height
+        cx = x + w // 2                    # center x of the target (what steering uses)
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)     # green box
+        cv2.circle(frame, (cx, y + h // 2), 4, (0, 0, 255), -1)           # red dot at its center
+        cv2.putText(frame, f"x={cx}  w={w}", (x, max(y - 8, 15)),         # text above the box
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)        # (max: never off the top)
     else:
         cv2.putText(frame, "no target", (10, H - 12),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
