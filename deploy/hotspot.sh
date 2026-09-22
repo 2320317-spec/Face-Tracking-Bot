@@ -28,7 +28,15 @@ set -euo pipefail
 
 # ---- Settings ---------------------------------------------------------------
 SSID="${HOTSPOT_SSID:-FollowBot}"            # the WiFi name your phone will see
-PASSWORD="${HOTSPOT_PASS:-followbot2026}"    # CHANGE THIS. At least 8 characters.
+
+# CHANGE THIS before the demo. At least 8 characters. Two ways:
+#   a) edit the line below, or
+#   b) give it once, when the hotspot is first created (keeps it out of the repo):
+#        sudo HOTSPOT_PASS='your-password' bash deploy/hotspot.sh boot-on
+# To change it afterwards, run "remove" first, then boot-on again with the new
+# one - the password is stored inside the saved WiFi profile, not read from here
+# every time.
+PASSWORD="${HOTSPOT_PASS:-followbot2026}"
 PROFILE="followbot-ap"                       # the name NetworkManager stores it under
 AP_IP="10.42.0.1"                            # fixed by NetworkManager's "shared" mode
 PORT=8000                                    # the dashboard's port

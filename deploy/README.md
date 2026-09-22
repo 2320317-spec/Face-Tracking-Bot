@@ -46,7 +46,7 @@ sudo bash deploy/hotspot.sh boot-off   # afterwards: go back to joining your hom
 
 Phone: join **FollowBot**, open **http://10.42.0.1:8000**.
 
-- **Change the password** at the top of `hotspot.sh` before the demo — anyone on that WiFi can drive the robot.
+- **Change the password** before the demo — either edit the top of `hotspot.sh`, or pass it once when the hotspot is first created: `sudo HOTSPOT_PASS='your-password' bash deploy/hotspot.sh boot-on`. To change it later, `remove` the hotspot and create it again. Anyone on that WiFi can drive the robot.
 - `hotspot.sh on` switches over immediately, which **drops any SSH session you have over the home WiFi**. That's expected. To get back in: join `FollowBot` and `ssh <user>@10.42.0.1`, or plug in a network cable.
 - `boot-on` / `boot-off` are the safer pair: they change what happens at the *next* boot and don't cut your connection now.
 - The WiFi country must be set (Localisation Options in `raspi-config`), or the Pi refuses to be an access point.
