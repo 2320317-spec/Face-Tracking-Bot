@@ -7,15 +7,18 @@
 # INPUT  - where the target is in the camera picture:
 #            x = center of the target, in pixels from the left edge (0 .. 480)
 #            w = width of the target, in pixels (bigger = closer)
+#          or None when the target isn't in the picture.
 #
 # OUTPUT - the command for the wheels:
 #            fwd  = forward speed  -100 .. 100 %   (+ forward, - reverse)
 #            turn = turn rate      -100 .. 100 %   (+ right,   - left)
 #
-# Every frame it makes two separate decisions:
+# Every frame it makes these decisions:
 #   1. DISTANCE (from w): follow / hold / back up    -> fwd
 #   2. STEERING (from x): how far off-center is it?  -> turn
+#   3. SEARCHING (target lost): sweep left and right to find it again
 # =============================================================================
+import time
 
 
 # ---- Camera picture size ----------------------------------------------------
@@ -79,8 +82,29 @@ SPEED_BACK = 40     # backing away when it's too close
 
 # ---- Losing the target --------------------------------------------------------
 LOST_GRACE = 5      # Detections flicker for a frame or two. Keep the last command for
-                    # up to 5 frames (~0.2-0.3 s) before deciding it's really gone and
-                    # stopping. Stops too late -> lower it. Stutters -> raise it.
+                    # up to 5 frames (~0.2-0.3 s) before deciding it's really gone.
+                    #   Starts searching too late -> lower it. Stutters -> raise it.
+
+
+# ---- 3. SEARCHING: when the target is really gone ----------------------------
+# The robot turns in place to look for it: first toward the side it was last
+# seen on (you probably walked out that way), then back the other way - each
+# sweep one step longer, so it looks further around every time:
+#
+#     sweep 1:  1 x SEARCH_SWEEP s  toward the side it was last seen
+#     sweep 2:  2 x SEARCH_SWEEP s  the other way  (past the start, to the other side)
+#     sweep 3:  3 x SEARCH_SWEEP s  back again     (further than sweep 1) ... and so on
+#
+# It stops searching the moment the target is seen again. WHO counts as the
+# target is decided outside the brain: step 5 SIMPLE = anyone, SMART = only you.
+SEARCH = True           # False = just stop when the target is lost (no searching)
+SEARCH_TURN = 25        # Turn speed while searching, %.
+                        #   Misses you while sweeping past -> lower it (more time to spot you, less blur)
+                        #   Takes too long to look around  -> raise it
+SEARCH_SWEEP = 1.0      # Seconds of the first sweep (must be more than 0). Every next sweep is
+                        # that much longer. Bigger = wider first look before turning back.
+                        # (In the simulator 1.0 s = ~90 degrees, so sweep 3 already looks behind.)
+SEARCH_GIVE_UP = 20     # Seconds: stop searching after this long and wait. 0 = never give up.
 
 
 # =============================================================================
@@ -92,24 +116,39 @@ class Follower:
 
     def reset(self):
         """Start fresh (used when switching modes)."""
-        self.state = "follow"                   # follow | hold | back
-        self.lost = 0                           # frames since the target was last seen
-        self.cmd = (0, 0)                       # the last command we gave
+        self.state = "follow"       # follow | hold | back | search | idle
+        self.lost = 0               # frames since the target was last seen
+        self.cmd = (0, 0)           # the last command we gave
+        self.last_side = 1          # which side the target was last seen on: +1 right, -1 left
+        self.search_start = 0.0     # when the current search started (seconds)
 
-    def update(self, target, mode):
+    def update(self, target, mode, now=None):
         """Called once per frame.
         target = (x, w) in pixels, or None if nothing was found.
         mode   = "color" or "face" (picks the distance thresholds).
+        now    = the time in seconds. Leave it out - the simulator passes its own clock.
         Returns (fwd, turn), each -100..100."""
+        if now is None:
+            now = time.time()
 
         # -- No target this frame --
         if target is None:
             self.lost += 1
-            if self.lost > LOST_GRACE:          # gone for too long: stop,
-                self.state, self.cmd = "follow", (0, 0)   # and be ready to follow when it's back
-            return self.cmd                     # just a flicker: keep doing the last thing
+            if self.lost <= LOST_GRACE:                 # just a flicker: keep doing the last thing
+                return self.cmd
+            if self.state not in ("search", "idle"):     # really gone: start searching
+                self.state, self.search_start = "search", now
+            turn = self.search_turn(now - self.search_start) if self.state == "search" else 0
+            if turn == 0:                               # searching is off, or we gave up: stop and wait
+                self.state = "idle"
+            self.cmd = (0, turn)                        # search = turn in place, never drive
+            return self.cmd
+
+        # -- Target found --
         self.lost = 0
         x, w = target
+        if self.state in ("search", "idle"):            # found it again: follow (the distance check
+            self.state = "follow"                       # below turns this into hold/back if it's close)
         resume_w, stop_w, backup_w = BANDS[mode]
 
         # -- 1. Distance: which of the three states are we in? --
@@ -130,11 +169,34 @@ class Follower:
         if abs(err) > DEAD_ZONE:                # outside the dead zone: turn toward it
             turn = round(KP * err / (W / 2))
             turn = max(-TURN_MAX, min(TURN_MAX, turn))
+            self.last_side = 1 if err > 0 else -1   # remember the side (the search starts that way)
         if abs(err) > ALIGN_ZONE:               # far off to the side: turn in place first
             fwd = 0
 
         self.cmd = (fwd, turn)
         return self.cmd
+
+    def search_turn(self, elapsed):
+        """The turn % while searching, `elapsed` seconds into the search. 0 = stop searching."""
+        if not SEARCH or (SEARCH_GIVE_UP and elapsed > SEARCH_GIVE_UP):
+            return 0
+        sweep, t = 1, elapsed
+        while t >= sweep * SEARCH_SWEEP:        # which sweep are we in? sweep n lasts n x SEARCH_SWEEP
+            t -= sweep * SEARCH_SWEEP
+            sweep += 1
+        side = self.last_side if sweep % 2 == 1 else -self.last_side   # odd sweeps: toward the last-seen side
+        return side * SEARCH_TURN
+
+    def status(self):
+        """What the brain is doing, for the screen. Returns (text, kind).
+        kind is one of: follow, hold, back, lost, search, idle - use it to pick a color."""
+        if self.lost == 0:
+            return self.state.upper(), self.state
+        if self.lost <= LOST_GRACE:
+            return "LOST - keep going", "lost"
+        if self.state == "search":
+            return "SEARCHING " + ("right" if self.cmd[1] > 0 else "left"), "search"
+        return "NO TARGET - waiting", "idle"
 
 
 def wheels(fwd, turn):

@@ -4,10 +4,13 @@
 # Finds the yellow target (like step 2) and lets the brain (brain.py) decide
 # what the robot would do. No motors yet - the decision is drawn on screen:
 #   state   FOLLOW / HOLD / BACK   (distance, from the target's width w)
+#           SEARCHING left/right   (target lost: the robot would sweep to find it -
+#                                   here the webcam can't turn, so just step back into view)
 #   command fwd and turn, each -100..100 %, plus the same thing in words
 #   wheels  two bars in the bottom corners: up = forward (green), down = reverse (red)
 #
-# All the thresholds (stop distance, dead zone, speeds...) live in brain.py.
+# All the thresholds (stop distance, dead zone, speeds, search...) live in brain.py.
+# Color mode follows the first yellow thing it finds - there's no "who" for colors.
 #
 # Run:  .venv\Scripts\python steps\04_decision.py
 # Keys: q = quit (click the video window first)
@@ -18,7 +21,7 @@ import time
 import cv2
 import numpy as np
 
-from brain import W, H, DEAD_ZONE, ALIGN_ZONE, LOST_GRACE, Follower, wheels, describe
+from brain import W, H, DEAD_ZONE, ALIGN_ZONE, Follower, wheels, describe
 
 CAMERA = 0             # which camera: 0 = first, 1 = second
 
@@ -70,7 +73,9 @@ def draw_wheel(frame, x, speed, label):
     cv2.putText(frame, f"{label} {speed}", (x - 6, H - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
 
 
-STATE_COLORS = {"follow": (0, 200, 0), "hold": (0, 220, 255), "back": (0, 0, 255)}   # green, yellow, red
+# Color of the state text, by what the brain is doing (see brain.py, Follower.status)
+STATE_COLORS = {"follow": (0, 200, 0), "hold": (0, 220, 255), "back": (0, 0, 255),   # green, yellow, red
+                "search": (0, 140, 255), "lost": (160, 160, 160), "idle": (160, 160, 160)}  # orange, gray, gray
 
 
 # ---- Open the camera (same as step 1) ------------------------------------------------
@@ -107,13 +112,11 @@ while True:
         cv2.circle(frame, (target[0], y + h // 2), 4, (0, 0, 255), -1)
         cv2.putText(frame, f"x={target[0]}  w={w}", (x, max(y - 8, 15)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
-        state_text, state_color = bot.state.upper(), STATE_COLORS[bot.state]
-    elif bot.lost <= LOST_GRACE:               # target just vanished: still in the grace frames
-        state_text, state_color = "LOST - keep going", (160, 160, 160)
-    else:                                      # gone for real: the brain has stopped
-        state_text, state_color = "NO TARGET", (160, 160, 160)
 
-    cv2.putText(frame, f"state: {state_text}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, state_color, 2)
+    # What the brain is doing: FOLLOW / HOLD / BACK, LOST - keep going (a flicker),
+    # SEARCHING left/right (sweeping to find it), NO TARGET - waiting (gave up)
+    state_text, kind = bot.status()
+    cv2.putText(frame, f"state: {state_text}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, STATE_COLORS[kind], 2)
     cv2.putText(frame, f"fwd {fwd}  turn {turn}", (10, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
     cv2.putText(frame, describe(fwd, turn), (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
