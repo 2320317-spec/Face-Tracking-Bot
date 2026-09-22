@@ -57,6 +57,7 @@ Try each step yourself first. The build plan has a finished reference for each p
 ### Step 5 — `05_face_detect.py`: faces instead of colors
 
 - **Goal:** detect faces with YuNet, take the widest (closest) one, and feed its `x` and `w` into the same decision logic.
+- **Two modes** (press `s` to switch): **SIMPLE** follows the biggest face in each frame, as it is. **SMART** locks onto one face (click a face to pick it, `l` to let go), smooths its `x` and `w`, and shows the face details: 5 landmarks, head turn, distance in meters, certainty.
 - **Needs:** the model file in `pi/models/` — see [its README](../pi/models/README.md).
 - **You'll use:** `cv2.FaceDetectorYN.create`, `detector.detect`.
 - **Done when:** the box sits on your face and stays on it as you step back to about 2 m, with `w` shrinking.
