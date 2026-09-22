@@ -85,7 +85,7 @@ On Linux or the Pi, use `.venv/bin/python` instead of `.venv\Scripts\python`. In
 - [x] 3. HSV tuner with sliders
 - [x] 4. Decision logic — `x` and `w` → `fwd turn` command (+ top-view simulator)
 - [x] 5. Face detection with YuNet (simple + smart modes)
-- [ ] 6. Combine everything into `pi/follow.py` + the phone dashboard
+- [x] 6. Combine everything into `pi/follow.py` + the phone dashboard
 
 **On the robot** — details in the [build plan](docs/following-robot-plan.md#7-build-sequence)
 
