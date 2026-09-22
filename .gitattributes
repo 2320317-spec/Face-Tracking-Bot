@@ -1,0 +1,10 @@
+# Store text files with LF line endings: the Raspberry Pi runs Linux,
+# and Windows-style line endings break shell scripts and service files there.
+* text=auto eol=lf
+
+# Binary files: never touch
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.webp binary
+*.onnx binary

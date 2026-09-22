@@ -1,0 +1,7 @@
+# Raspberry Pi (no screen): headless OpenCV. Install into the venv from the build plan (5.2):
+#   ~/robot-venv/bin/pip install -r requirements-pi.txt
+# gpiozero / lgpio (optional backup button) come from apt, not pip.
+opencv-python-headless>=4.8,<5
+numpy
+flask
+pyserial

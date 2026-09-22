@@ -1,0 +1,29 @@
+# ── Python ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+robot-venv/
+
+# ── Editors & OS ─────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Arduino build output ─────────────────────────────
+uno/**/build/
+
+# ── Downloaded models (see pi/models/README.md) ──────
+pi/models/*.onnx
+
+# ── Camera captures, recordings & logs ───────────────
+# Never upload pictures of people's faces.
+captures/
+recordings/
+*.log
+
+# ── Secrets ──────────────────────────────────────────
+.env

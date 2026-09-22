@@ -1,0 +1,6 @@
+# Laptop / PC: development with the webcam and preview windows.
+#   python -m pip install -r requirements-pc.txt
+opencv-python>=4.8,<5      # 4.x only: the face model used here doesn't work with OpenCV 5
+numpy
+flask                      # phone dashboard (step 6)
+pyserial                   # talking to the Uno (step 6 onwards)
