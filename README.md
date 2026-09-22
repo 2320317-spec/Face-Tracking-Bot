@@ -98,6 +98,7 @@ On Linux or the Pi, use `.venv/bin/python` instead of `.venv\Scripts\python`. In
 ## Documentation
 
 - [Build plan](docs/following-robot-plan.md) — design, parts, wiring, code reference, build sequence, troubleshooting.
+- [Raspberry Pi setup](docs/pi-setup.md) — step by step, from a blank SD card to a checked Pi.
 
 ## Acknowledgements
 

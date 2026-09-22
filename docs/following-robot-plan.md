@@ -332,6 +332,8 @@ Face_Tracking_Bot/
 
 ### 5.2 Raspberry Pi setup
 
+> **Beginner walkthrough:** [pi-setup.md](pi-setup.md) — the same steps in more detail, with `deploy/setup_pi.sh` doing steps 3–4 below in one command and `tools/pi_check.py` checking the result.
+
 1. Flash **Raspberry Pi OS Lite (64-bit)** with Raspberry Pi Imager. In its settings: hostname `followbot`, a username and password, your home WiFi, and SSH enabled. Lite has no desktop — that CPU and RAM go to vision.
 2. Boot the Pi, then from your laptop: `ssh <user>@followbot.local`
 3. Install the system packages and create the Python environment:

@@ -37,7 +37,7 @@ from brain import W, H, DEAD_ZONE, ALIGN_ZONE, Follower, wheels, describe
 
 
 # ---- Settings: camera and models -------------------------------------------------
-CAMERA = 0             # which camera: 0 = first, 1 = second
+CAMERA = 1             # which camera: 0 = first, 1 = second
 MODELS = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pi", "models"))
 DETECT_MODEL = os.path.join(MODELS, "face_detection_yunet_2023mar.onnx")      # YuNet (needed)
 RECOG_MODEL = os.path.join(MODELS, "face_recognition_sface_2021dec.onnx")     # SFace (for SMART)

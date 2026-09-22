@@ -4,7 +4,8 @@ Files that make the Pi run the robot on its own, without a laptop. You'll add th
 
 | File | What it does | Plan |
 |---|---|---|
-| `followbot.service` | systemd unit: starts `pi/follow.py` at boot and restarts it if it crashes | 5.12 |
+| `setup_pi.sh` | **Installs everything on a fresh Pi** in one go: system update, packages, Python environment, face models, serial port access. Safe to run again. Full walkthrough: [docs/pi-setup.md](../docs/pi-setup.md) | 5.2 |
+| `followbot.service` | *(later)* systemd unit: starts `pi/follow.py` at boot and restarts it if it crashes | 5.12 |
 
 Install the service on the Pi, from the project root (edit `<user>` in the file first):
 
