@@ -8,7 +8,7 @@ Everything the robot runs. It also runs on the PC with `--dry` (no Uno needed), 
 | `brain.py` | The decisions: follow / hold / back up, steering, searching. **Driving settings live here.** |
 | `vision.py` | The eyes: camera, color detection, face detection + recognition, the SMART lock. **Color and face settings live here.** |
 | `web.py` | The phone dashboard's web server. |
-| `templates/index.html` | The phone page: live view, mode buttons, Start / STOP, joystick. |
+| `templates/index.html` | The phone page: live view, mode buttons, Engage / STOP, joystick. One self-contained file — no internet needed, so it still looks right on the robot's own hotspot. |
 | `models/` | The two face models — downloaded, not on GitHub ([how to get them](models/README.md)). |
 
 `steps/` 4, 4b and 5 use the same `brain.py` and `vision.py`, so a setting you tune here also changes the simulator and the step scripts.
@@ -43,4 +43,16 @@ Stop it with **Ctrl+C** — it always sends a final stop to the motors.
 | `--mode face` | Start in `color`, `face` or `manual` mode (default `color`) |
 | `--web-port 8000` | The dashboard's port |
 
-The robot always starts **STOPPED** — nothing moves until you press **Start** on the page.
+The robot always starts **STOPPED** — nothing moves until you press **Engage** on the page.
+
+## The dashboard
+
+| | |
+|---|---|
+| **Tracking state** | Big word at the top — FOLLOWING, HOLDING, BACKING UP, SEARCHING, MANUAL. The whole page takes its color from it: green, amber, red, blue. |
+| **Optical feed** | The live view with the boxes drawn in. In Face + Smart, **tap your face** = "this is me". |
+| **Numbers** | fps · command sent to the Uno · target width · faces seen. |
+| **Control deck** | Mode (Color / Face / Manual), then Simple / Smart and Forget me, then the joystick in Manual. |
+| **Engage / STOP** | In the panel at the top, and again in a bar that slides up from the bottom once you scroll past it, so STOP is always a thumb away. |
+| **Keyboard** | On a laptop: **W A S D** or the arrow keys drive in Manual, **space** = STOP. |
+| **✦** | Turns the background rain and the dragon off. Both are drawn by your phone, not the Pi. |

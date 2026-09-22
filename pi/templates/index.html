@@ -1,144 +1,658 @@
 <!doctype html>
-<!-- FollowBot phone dashboard. Served by web.py; talks to it with /api/... requests. -->
+<!-- =============================================================================
+     FollowBot dashboard - the page you open on a phone, tablet or laptop.
+     Served by web.py; every button here goes out as an /api/... request.
+
+     Look: same style as the SentryCore project (near-black, glass panels,
+     hairline borders, tiny spaced-out labels, big light status text).
+     Written as plain CSS on purpose - NO Tailwind CDN, because at the demo the
+     robot makes its own WiFi hotspot with no internet, and a CDN link would
+     leave the page unstyled. Everything needed is inside this one file.
+
+     The whole page is tinted by the robot's state: green = following,
+     amber = holding / searching, red = backing up, blue = manual, white = idle.
+     ============================================================================= -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FollowBot</title>
+<!-- viewport-fit=cover + the safe-area padding below = nothing hides under an iPhone's notch -->
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050505">
+<title>FollowBot | Vision Tracking</title>
 <style>
-  :root { --bg: #111; --panel: #1c1c1c; --btn: #333; --text: #eee; --dim: #999;
-          --blue: #2a7de1; --green: #2e9e4f; --red: #d62d20; --orange: #e8891c; --yellow: #d8b41c; }
-  * { box-sizing: border-box; }
-  body { margin: 0; padding: 10px; background: var(--bg); color: var(--text);
-         font-family: system-ui, sans-serif; display: flex; flex-direction: column;
-         align-items: center; gap: 10px; }
-  header { width: 100%; max-width: 480px; display: flex; justify-content: space-between; align-items: center; }
-  h1 { font-size: 20px; margin: 0; }
-  #dot { font-size: 13px; color: var(--dim); }
-  #dot.ok::before { content: "● "; color: var(--green); }
-  #dot.bad::before { content: "● "; color: var(--red); }
-  #view { width: 100%; max-width: 480px; aspect-ratio: 4 / 3; background: #000; border-radius: 8px; }
-  #state { font-size: 18px; font-weight: bold; }
-  #state.follow { color: #4cd07d; }  #state.hold { color: var(--yellow); }  #state.back { color: #ff5a4f; }
-  #state.search { color: var(--orange); }  #state.lost, #state.idle { color: var(--dim); }
-  #state.manual { color: #6aa8ff; }
-  #details, #info { font: 13px monospace; color: var(--dim); text-align: center; max-width: 480px; }
-  .row { display: flex; gap: 8px; width: 100%; max-width: 480px; }
-  .row[hidden] { display: none; }
-  button { flex: 1; padding: 14px 0; font-size: 16px; border: 0; border-radius: 8px;
-           background: var(--btn); color: var(--text); }
-  button.on { background: var(--blue); }
-  #run.on { background: var(--green); }
-  #stop { background: var(--red); font-weight: bold; }
-  #pad { width: 220px; height: 220px; border-radius: 50%; background: var(--panel);
-         border: 2px solid #444; position: relative; touch-action: none; }
-  #knob { position: absolute; left: 80px; top: 80px; width: 60px; height: 60px;
-          border-radius: 50%; background: var(--blue); pointer-events: none; }
-  .hint { font-size: 12px; color: var(--dim); }
+  /* ================= 1. Colors and shared sizes ============================= */
+  :root {
+    --ink:      #050505;                      /* page background                     */
+    --glass:    rgba(255, 255, 255, .02);     /* panels                              */
+    --glass-2:  rgba(255, 255, 255, .05);     /* buttons                             */
+    --edge:     rgba(255, 255, 255, .08);     /* hairline borders                    */
+    --text:     rgba(255, 255, 255, .85);
+    --dim:      rgba(255, 255, 255, .40);
+    --faint:    rgba(255, 255, 255, .20);
+
+    /* The state color. JavaScript changes these three lines, and the glow, the
+       borders, the status text and the rain all follow along. */
+    --state:     255, 255, 255;
+    --state-str: .40;                          /* how strong the tint is (0-1)       */
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(112px + env(safe-area-inset-bottom));
+    background: var(--ink);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    overflow-x: hidden;
+    overscroll-behavior: none;                 /* no rubber-band bounce on the joystick */
+  }
+  @media (min-width: 900px) { body { padding: 40px 40px 40px; } }
+
+  /* soft glow blobs in the corners, tinted by the state */
+  .blob { position: fixed; border-radius: 50%; pointer-events: none; z-index: 0; filter: blur(110px); }
+  .blob.one { top: -12%; left: -10%;  width: 42vw; height: 42vw; background: rgba(255, 255, 255, .025); }
+  .blob.two { bottom: -12%; right: -10%; width: 34vw; height: 34vw;
+              background: rgba(var(--state), .07); transition: background 1s; }
+
+  #rain { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; opacity: .8; }
+  /* One drop-shadow, not two: the glow is drawn over the whole screen every frame,
+     and it only ever runs on a laptop (it is switched off on touch screens). */
+  #dragon { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1;
+            opacity: .9; filter: drop-shadow(0 0 12px currentColor); }
+
+  .page { position: relative; z-index: 2; max-width: 1180px; margin: 0 auto;
+          display: flex; flex-direction: column; gap: 22px; }
+
+  /* ================= 2. Small reusable pieces =============================== */
+  .glass {
+    background: var(--glass); border: 1px solid rgba(255, 255, 255, .05);
+    border-radius: 24px; backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  }
+  .label {                                     /* the tiny spaced-out captions */
+    font-size: 10px; font-weight: 500; letter-spacing: .2em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .mono { font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+
+  /* the pulsing dot, same as your Sentry page */
+  .ping { position: relative; display: inline-flex; width: 8px; height: 8px; }
+  .ping i { position: absolute; inset: 0; border-radius: 50%; background: rgb(var(--state));
+            opacity: .6; animation: ping 1.6s cubic-bezier(0, 0, .2, 1) infinite; }
+  .ping b { position: relative; width: 8px; height: 8px; border-radius: 50%; background: rgb(var(--state)); }
+  @keyframes ping { 75%, 100% { transform: scale(2.2); opacity: 0; } }
+
+  /* ================= 3. Header ============================================== */
+  header { display: flex; align-items: center; justify-content: space-between;
+           flex-wrap: wrap; gap: 14px; padding-bottom: 20px;
+           border-bottom: 1px solid rgba(255, 255, 255, .05); }
+  .brand { display: flex; align-items: center; gap: 16px; }
+  .tile {                                      /* the rounded icon square */
+    width: 46px; height: 46px; flex: none; display: flex; align-items: center; justify-content: center;
+    border-radius: 14px; background: rgba(255, 255, 255, .03);
+    border: 1px solid var(--edge); backdrop-filter: blur(10px);
+  }
+  .tile svg { width: 22px; height: 22px; }
+  h1 { margin: 0; font-size: 22px; font-weight: 300; letter-spacing: .18em; color: #fff; }
+  h1 b { font-weight: 700; }
+  .sub { margin: 3px 0 0; font-size: 9.5px; letter-spacing: .22em; text-transform: uppercase; color: var(--faint); }
+
+  .pill { display: flex; align-items: center; gap: 10px; padding: 8px 16px; border-radius: 999px;
+          background: var(--glass); border: 1px solid rgba(255, 255, 255, .05); backdrop-filter: blur(10px); }
+  .pill span { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: rgba(255, 255, 255, .7); }
+  #fx { border: 0; background: none; color: var(--faint); font-size: 15px; cursor: pointer; padding: 8px; }
+  #fx.on { color: rgb(var(--state)); }
+
+  /* ================= 4. Hero: the state + Start/STOP ======================== */
+  .hero { position: relative; overflow: hidden; padding: 26px; }
+  .hero::after {                               /* the big soft glow inside the panel */
+    content: ""; position: absolute; top: -40%; right: -20%; width: 30rem; height: 30rem;
+    border-radius: 50%; filter: blur(100px); background: rgba(var(--state), .10);
+    transition: background 1s; pointer-events: none;
+  }
+  .hero-in { position: relative; display: flex; flex-wrap: wrap; align-items: center;
+             justify-content: space-between; gap: 24px; }
+  .state-side { display: flex; align-items: center; gap: 20px; min-width: 0; }
+  .state-tile { width: 72px; height: 72px; border-radius: 20px; flex: none;
+                display: flex; align-items: center; justify-content: center;
+                background: rgba(var(--state), .08); border: 1px solid rgba(var(--state), .22);
+                color: rgb(var(--state)); transition: background .7s, border-color .7s, color .7s; }
+  .state-tile svg { width: 32px; height: 32px; }
+  #statetext { margin: 2px 0 0; font-size: clamp(26px, 7vw, 44px); font-weight: 300;
+               letter-spacing: -.01em; line-height: 1.1; color: rgb(var(--state)); transition: color .7s; }
+  #substate { margin-top: 6px; font-size: 11px; color: var(--dim); }
+  .hero.searching #statetext { animation: dim 1.2s infinite; }
+  @keyframes dim { 50% { opacity: .45; } }
+
+  .acts { display: flex; gap: 12px; flex: 1 1 260px; justify-content: flex-end; }
+  .act {
+    flex: 1 1 0; max-width: 200px; padding: 15px 20px; border-radius: 14px;
+    font-family: inherit; font-size: 11px; font-weight: 500; letter-spacing: .15em; text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    background: var(--glass-2); border: 1px solid var(--edge); color: #fff;
+    transition: background .4s, border-color .4s, box-shadow .4s, transform .15s;
+  }
+  .act svg { width: 16px; height: 16px; }
+  .act:active { transform: scale(.96); }
+  /* .go and .danger, not #ids, so the copies in the bottom bar look the same */
+  .act.go svg { color: #34d399; }
+  .act.go.on { background: rgba(16, 185, 129, .18); border-color: rgba(16, 185, 129, .45); color: #6ee7b7;
+               box-shadow: 0 0 24px rgba(16, 185, 129, .12); }
+  .act.danger { background: rgba(244, 63, 94, .10); border-color: rgba(244, 63, 94, .30); color: #fb7185; }
+  .act.danger:active { background: rgba(244, 63, 94, .35); color: #fff; }
+
+  /* ================= 5. The grid below ====================================== */
+  .grid { display: grid; gap: 22px; }
+  @media (min-width: 980px) { .grid { grid-template-columns: 2fr 1fr; align-items: start; } }
+  .col { display: flex; flex-direction: column; gap: 16px; }
+  .sec-title { display: flex; align-items: center; gap: 12px; margin: 4px 0 2px; }
+  .sec-title i { width: 5px; height: 5px; border-radius: 50%; background: rgba(255, 255, 255, .3); }
+
+  /* ---- live view ---- */
+  .feed { overflow: hidden; padding: 0; }
+  .feed-bar { display: flex; align-items: center; justify-content: space-between;
+              padding: 12px 16px; background: rgba(0, 0, 0, .4);
+              border-bottom: 1px solid rgba(255, 255, 255, .05); }
+  .feed-bar .left { display: flex; align-items: center; gap: 9px; }
+  @media (max-width: 560px) { .feed-bar .right { display: none; } }   /* no room on a phone */
+  #stage { position: relative; background: #000; aspect-ratio: 4 / 3; }
+  #view { width: 100%; height: 100%; object-fit: contain; display: block; }
+  /* object-fit: contain matters - a tap is turned into picture coordinates, so the
+     picture must not be cropped, or "this is me" would land on the wrong face. */
+  #stage.offline #view { opacity: .25; filter: grayscale(1); }
+  #stage.offline::after { content: "SIGNAL LOST"; position: absolute; inset: 0; display: grid;
+                          place-items: center; font-size: 11px; letter-spacing: .25em; color: #fb7185; }
+  #ping-ring { position: absolute; width: 48px; height: 48px; margin: -24px 0 0 -24px;
+               border: 2px solid rgb(var(--state)); border-radius: 50%; opacity: 0; pointer-events: none; }
+  #ping-ring.go { animation: tap .6s ease-out; }
+  @keyframes tap { from { transform: scale(.4); opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
+
+  /* the four numbers under the video */
+  .tele { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid rgba(255, 255, 255, .05); }
+  .tele div { padding: 12px 8px; text-align: center; border-left: 1px solid rgba(255, 255, 255, .04); }
+  .tele div:first-child { border-left: 0; }
+  .tele small { display: block; font-size: 9px; letter-spacing: .18em; text-transform: uppercase; color: var(--faint); }
+  .tele span { display: block; margin-top: 4px; font-size: 17px; font-weight: 300; color: #fff; }
+
+  /* ---- control panels ---- */
+  .panel { padding: 18px; }
+  .seg { display: grid; grid-auto-flow: column; gap: 8px; margin-top: 14px; }
+  .seg button, .ghost {
+    padding: 13px 8px; border-radius: 12px; font-family: inherit;
+    font-size: 10px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+    background: rgba(255, 255, 255, .02); border: 1px solid rgba(255, 255, 255, .07); color: var(--dim);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px;
+    transition: background .35s, color .35s, border-color .35s, transform .15s;
+  }
+  .seg button svg { width: 18px; height: 18px; }
+  .seg button.on { background: rgba(var(--state), .12); border-color: rgba(var(--state), .35);
+                   color: rgb(var(--state)); box-shadow: 0 0 20px rgba(var(--state), .10); }
+  .seg button:active, .ghost:active { transform: scale(.97); }
+  .ghost { width: 100%; margin-top: 8px; flex-direction: row; gap: 8px; color: rgba(255, 255, 255, .6); }
+
+  .note { margin-top: 14px; font-size: 11.5px; line-height: 1.6; color: var(--dim);
+          border-left: 1px solid rgba(255, 255, 255, .1); padding-left: 12px; }
+  .note b { color: rgba(255, 255, 255, .8); font-weight: 500; }
+  .note .warn { color: #fbbf24; }
+
+  /* ---- joystick ---- */
+  #drive { display: flex; flex-direction: column; align-items: center; gap: 14px; margin-top: 16px; }
+  #pad { width: min(64vw, 230px); aspect-ratio: 1; border-radius: 50%; position: relative; touch-action: none;
+         background: radial-gradient(circle at 50% 45%, rgba(255, 255, 255, .04), rgba(255, 255, 255, .01) 70%);
+         border: 1px solid rgba(255, 255, 255, .08); }
+  #pad::before, #pad::after { content: ""; position: absolute; background: rgba(255, 255, 255, .06); }
+  #pad::before { left: 50%; top: 14%; bottom: 14%; width: 1px; }
+  #pad::after  { top: 50%; left: 14%; right: 14%; height: 1px; }
+  #knob { position: absolute; left: 50%; top: 50%; width: 27%; aspect-ratio: 1;
+          transform: translate(-50%, -50%); border-radius: 50%;
+          background: rgba(var(--state), .22); border: 1px solid rgba(var(--state), .5);
+          box-shadow: 0 0 26px rgba(var(--state), .35); pointer-events: none; transition: left .1s, top .1s; }
+  #pad.held #knob { transition: none; }        /* follow the finger with no lag */
+  #readout { font-size: 11px; letter-spacing: .12em; color: var(--dim); }
+
+  /* ================= 6. The always-there STOP bar (phones) ================== */
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: 10px;
+         padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+         background: rgba(5, 5, 5, .82); backdrop-filter: blur(14px);
+         border-top: 1px solid rgba(255, 255, 255, .06);
+         transform: translateY(110%); transition: transform .3s; }
+  #bar.up { transform: none; }                 /* slides in once the hero buttons scroll away */
+  #bar .act { max-width: none; padding: 17px; font-size: 12px; }
+  @media (min-width: 980px) { #bar { display: none; } body { padding-bottom: 40px; } }
 </style>
 </head>
 <body>
-<header><h1>FollowBot</h1><span id="dot">connecting…</span></header>
 
-<img id="view" src="/stream" alt="live view">
-<div id="state">…</div>
-<div id="details"></div>
+<div class="blob one"></div>
+<div class="blob two"></div>
+<canvas id="rain"></canvas>
+<svg id="dragon" hidden>
+  <defs>
+    <g id="Cabeza">
+      <path fill="currentColor" d="M-28.9,-1.1L-28.55 -1.95Q-28.1 -3.1 -27.25 -2.95L-26.7 -2.95Q-27.7 -1.65 -28.9 -1.1M-18.35,-1.8Q-15.1 -10.3 -9.6 -6.05Q-15.1 -6.2 -18.35 -1.8M-18.35,1.1Q-15.1 5.45 -9.6 5.35Q-15.1 9.55 -18.35 1.1M-26.7,2.2L-27.25 2.25Q-28.1 2.4 -28.55 1.2L-28.9 0.35Q-27.7 0.9 -26.7 2.2"/>
+      <path fill="currentColor" opacity="0.8" d="M-21.05,-8.25Q-13.6 -15.95 -1.3 -12.1Q-7.85 -8.5 -5.85 -4.35Q-2.3 -4.85 10.5 0.15Q0 4.35 -5.85 3.65Q-7.85 7.75 -1.25 12.45Q-13.6 15.2 -21.05 7.5Q-29.55 4.05 -30.2 -0.35Q-29.55 -4.8 -21.05 -8.25M-26.7,-2.95L-27.25 -2.95Q-28.1 -3.1 -28.55 -1.95L-28.9 -1.1Q-27.7 -1.65 -26.7 -2.95M-9.6,-6.05Q-15.1 -10.3 -18.35 -1.8Q-15.1 -6.2 -9.6 -6.05M-9.6,5.35Q-15.1 5.45 -18.35 1.1Q-15.1 9.55 -9.6 5.35M-28.9,0.35L-28.55 1.2Q-28.1 2.4 -27.25 2.25L-26.7 2.2Q-27.7 0.9 -28.9 0.35"/>
+    </g>
+    <g id="Espina">
+      <path fill="currentColor" opacity="0.9" d="M-18.8,0Q-17.85 -5.7 -12.3 -9.6Q-11.2 -5.35 -6.5 -8.25L-6.45 -8.2L-6.2 -8.3Q1.25 -16.25 6.65 -12.4Q0.05 -12.55 0 -5.95Q2.7 -2.4 7.75 -4.1Q18 -1.45 18.8 0L-18.8 0"/>
+      <path fill="currentColor" opacity="0.6" d="M18.8,0Q18 1.45 7.75 4.1Q2.7 2.4 0 5.95Q0.05 12.55 6.65 12.4Q1.25 16.25 -6.2 8.35Q-6.35 8.25 -6.45 8.25L-6.5 8.25Q-11.2 5.35 -12.3 9.6Q-17.85 5.7 -18.8 0L18.8 0"/>
+    </g>
+  </defs>
+  <g id="screen"></g>
+</svg>
 
-<div class="row">
-  <button data-mode="color">Color</button>
-  <button data-mode="face">Face</button>
-  <button data-mode="manual">Manual</button>
+<div class="page">
+
+  <!-- ===== header ===== -->
+  <header>
+    <div class="brand">
+      <div class="tile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" style="color:#fff">
+          <rect x="3.5" y="7" width="17" height="12" rx="3"/><path d="M12 7V4"/><circle cx="12" cy="3" r="1.1"/>
+          <circle cx="8.6" cy="13" r="1.4" fill="currentColor" stroke="none"/>
+          <circle cx="15.4" cy="13" r="1.4" fill="currentColor" stroke="none"/>
+          <path d="M1.5 11v4M22.5 11v4"/>
+        </svg>
+      </div>
+      <div>
+        <h1>FOLLOW<b>BOT</b></h1>
+        <p class="sub">Autonomous Vision Tracking Platform</p>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button id="fx" title="background effects">✦</button>
+      <div class="pill"><span class="ping"><i></i><b></b></span><span id="linktext">Connecting</span></div>
+    </div>
+  </header>
+
+  <!-- ===== hero: what the robot is doing + Start / STOP ===== -->
+  <section class="glass hero" id="hero">
+    <div class="hero-in">
+      <div class="state-side">
+        <div class="state-tile" id="statetile"></div>
+        <div style="min-width:0">
+          <div class="label">Tracking State</div>
+          <div id="statetext">Connecting</div>
+          <div id="substate" class="mono">standing by</div>
+        </div>
+      </div>
+      <div class="acts">
+        <button class="act go" id="run">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M6 4l13 8-13 8V4z"/></svg>
+          <span id="runtext">Engage</span>
+        </button>
+        <button class="act danger" id="stop">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M12 9v3m0 3h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/></svg>
+          Stop
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== the two columns ===== -->
+  <div class="grid">
+
+    <!-- ---- left: the camera ---- -->
+    <div class="col">
+      <div class="sec-title"><i></i><span class="label">Optical Feed</span></div>
+      <div class="glass feed">
+        <div class="feed-bar">
+          <div class="left"><span class="ping"><i></i><b></b></span><span class="label" id="feedmode">Color Tracking</span></div>
+          <span class="label mono right">OPENCV_1 · 480×360</span>
+        </div>
+        <div id="stage">
+          <img id="view" src="/stream" alt="live view">
+          <div id="ping-ring"></div>
+        </div>
+        <div class="tele">
+          <div><small>FPS</small><span id="t-fps">–</span></div>
+          <div><small>Command</small><span id="t-cmd">–</span></div>
+          <div><small>Target W</small><span id="t-w">–</span></div>
+          <div><small>Faces</small><span id="t-faces">–</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- right: the controls ---- -->
+    <div class="col">
+      <div class="sec-title"><i></i><span class="label">Control Deck</span></div>
+
+      <div class="glass panel">
+        <div class="label">Tracking Mode</div>
+        <div class="seg" id="modes">
+          <button data-mode="color">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5"/></svg>
+            Color
+          </button>
+          <button data-mode="face">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <circle cx="12" cy="12" r="8"/><path d="M9 10h.01M15 10h.01M9 14.6c1.8 1.4 4.2 1.4 6 0"/></svg>
+            Face
+          </button>
+          <button data-mode="manual">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+              <circle cx="12" cy="16.5" r="3.5"/><path d="M12 13V5M9 7l3-3 3 3"/></svg>
+            Manual
+          </button>
+        </div>
+
+        <!-- face mode only -->
+        <div id="facebox" hidden>
+          <div class="label" style="margin-top:18px">Recognition</div>
+          <div class="seg">
+            <button data-who="simple">Simple</button>
+            <button data-who="smart">Smart</button>
+          </div>
+          <button class="ghost" id="forget">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="width:15px;height:15px">
+              <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+            Forget me
+          </button>
+          <div class="note" id="facehint"></div>
+        </div>
+      </div>
+
+      <!-- manual mode only -->
+      <div class="glass panel" id="drivecard" hidden>
+        <div class="label">Manual Drive</div>
+        <div id="drive">
+          <div id="pad"><div id="knob"></div></div>
+          <div id="readout" class="mono">FWD 0 · TURN 0</div>
+        </div>
+        <div class="note">Hold to drive, let go and it stops.<br>On a laptop: <b>W A S D</b> or the arrow keys.</div>
+      </div>
+
+      <div class="glass panel">
+        <div class="label">System</div>
+        <div class="note" id="info">…</div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<div class="row" id="facerow" hidden>
-  <button data-who="simple">Simple</button>
-  <button data-who="smart">Smart</button>
-  <button id="forget">Forget me</button>
+<!-- Start / STOP follows you down the page on a phone, so STOP is always a thumb away -->
+<div id="bar">
+  <button class="act go" id="run2">Engage</button>
+  <button class="act danger" id="stop2">Stop</button>
 </div>
-<div class="hint" id="facehint" hidden>Smart: tap your face in the picture = "this is me"</div>
-
-<div class="row">
-  <button id="run">Start</button>
-  <button id="stop">STOP</button>
-</div>
-
-<div id="pad" hidden><div id="knob"></div></div>
-<div id="info"></div>
 
 <script>
 const $ = s => document.querySelector(s);
+const all = s => document.querySelectorAll(s);
 
-// Send a command to the robot. Returns the new status (or null for "no content" answers).
+/* Send a command to the robot. The answer is the new status, or nothing (204). */
 const post = (url, body = {}) => fetch(url, {
   method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
 }).then(r => r.status === 204 ? null : r.json());
 
-// Update the page from the robot's status.
+const buzz = ms => navigator.vibrate && navigator.vibrate(ms);   // a short buzz on phones
+
+let last = {};            // newest status from the robot
+let misses = 0;           // status requests in a row with no answer
+
+/* ---- One look per state -------------------------------------------------------
+   kind comes from brain.py: follow / hold / back / search / lost / idle / manual.
+   rgb  = the tint for the whole page,  rain = how fast the background rain falls. */
+const LOOKS = {
+  follow: {rgb: "52,211,153",  rain: 0.35, note: "target locked · closing in",
+           icon: '<path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="4.5"/>'},
+  hold:   {rgb: "245,158,11",  rain: 0.8,  note: "at the right distance · holding",
+           icon: '<circle cx="12" cy="12" r="8"/><path d="M10 9v6M14 9v6"/>'},
+  back:   {rgb: "244,63,94",   rain: 2.2,  note: "too close · backing away",
+           icon: '<path d="M12 19V5M6 13l6 6 6-6"/>'},
+  search: {rgb: "245,158,11",  rain: 3.0,  note: "target lost · sweeping left and right",
+           icon: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/>'},
+  manual: {rgb: "56,189,248",  rain: 1.4,  note: "you are driving",
+           icon: '<circle cx="12" cy="16" r="3.5"/><path d="M12 12.5V5M9 7l3-3 3 3"/>'},
+  lost:   {rgb: "255,255,255", rain: 1.0,  note: "nothing in view",
+           icon: '<circle cx="12" cy="12" r="8"/><path d="M8.5 15.5c2-1.6 5-1.6 7 0M9 9.5h.01M15 9.5h.01"/>'},
+  idle:   {rgb: "255,255,255", rain: 1.0,  note: "standing by",
+           icon: '<rect x="4.5" y="4.5" width="15" height="15" rx="4"/><path d="M9.5 9.5h5v5h-5z"/>'},
+};
+
+/* ---- Redraw the page from one status ---------------------------------------- */
 function show(s) {
   if (!s) return;
-  $("#dot").className = "ok";
-  $("#dot").textContent = "connected";
-  document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === s.mode));
-  document.querySelectorAll("[data-who]").forEach(b => b.classList.toggle("on", b.dataset.who === s.who));
-  $("#facerow").hidden = s.mode !== "face";
-  $("#facehint").hidden = !(s.mode === "face" && s.who === "smart");
-  $("#pad").hidden = s.mode !== "manual";
-  $("#run").classList.toggle("on", s.running);
-  $("#run").textContent = s.running ? "Running" : "Start";
-  $("#state").textContent = s.state ?? "…";
-  $("#state").className = s.kind ?? "";
-  $("#details").textContent = [s.mode + (s.mode === "face" ? " · " + s.who : ""),
-                               "w=" + (s.w ?? "-"), "cmd " + (s.cmd ?? "-"), (s.fps ?? "-") + " fps"].join("  ·  ");
+  last = s; misses = 0;
+  setLink(true);
+
+  const look = LOOKS[s.kind] || LOOKS.idle;
+  document.documentElement.style.setProperty("--state", look.rgb);
+  rainTarget = look.rain;
+  rainColor = look.rgb.split(",").map(Number);
+  $("#hero").classList.toggle("searching", s.kind === "search");
+  $("#statetile").innerHTML =
+    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3"
+          stroke-linecap="round" stroke-linejoin="round">${look.icon}</svg>`;
+
+  // the big words: "STOPPED - press Start" etc. from follow.py, without the hint half
+  $("#statetext").textContent = (s.state ?? "…").split(" - ")[0];
+  $("#substate").textContent  = (s.state ?? "").includes(" - ")
+    ? s.state.split(" - ").slice(1).join(" - ") : look.note;
+
+  // buttons
+  all("[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === s.mode));
+  all("[data-who]").forEach(b => b.classList.toggle("on", b.dataset.who === s.who));
+  $("#facebox").hidden = s.mode !== "face";
+  $("#drivecard").hidden = s.mode !== "manual";
+  $("#feedmode").textContent = s.mode === "face" ? `Face Tracking · ${s.who}`
+                             : s.mode === "manual" ? "Manual Drive" : "Color Tracking";
+
+  const on = !!s.running;
+  $("#run").classList.toggle("on", on);
+  $("#run2").classList.toggle("on", on);
+  $("#runtext").textContent = on ? "Running" : "Engage";
+  $("#run2").textContent    = on ? "Running" : "Engage";
+
+  // numbers under the video
+  $("#t-fps").textContent = s.fps ?? "–";
+  $("#t-cmd").textContent = s.cmd ?? "–";
+  $("#t-w").textContent   = s.w ?? "–";
+  $("#t-faces").textContent = s.mode === "face" ? (s.faces ?? 0) : "–";
+
+  // what the two face modes do
+  $("#facehint").innerHTML = s.mode !== "face" ? "" : s.who === "smart"
+    ? "Follows <b>you only</b> and ignores everyone else.<br>Tap your face in the feed = “this is me”."
+    : "Follows the <b>biggest face</b> it can see, whoever that is.";
+
+  // plain-English system notes
   const info = [];
-  if (s.uno === false) info.push("no Uno (--dry): nothing is sent to the motors");
+  if (s.uno === false) info.push('<span class="warn">⚠ No Uno connected (--dry) — the wheels get nothing.</span>');
   if (s.mode === "face" && s.who === "smart") {
-    if (!s.recognizer) info.push("no recognition model: follows by position only");
-    else if (s.knows_you) info.push(`knows you (${s.prints}/${s.learn_max} fingerprints)`);
-    else info.push("doesn't know you yet: tap your face, or the next face = you");
+    if (!s.recognizer) info.push("No recognition model — following by position only.");
+    else if (s.knows_you) info.push(`Knows your face · <b>${s.prints}/${s.learn_max}</b> snapshots learned.`);
+    else info.push("Doesn't know you yet — tap your face, or the next face it sees becomes you.");
   }
-  $("#info").textContent = info.join("  ·  ");
+  info.push(on ? "Motors armed." : "Motors idle — press Engage when the robot is on the floor.");
+  $("#info").innerHTML = info.join("<br>");
 }
 
-// Buttons
-document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => post("/api/mode", {mode: b.dataset.mode}).then(show));
-document.querySelectorAll("[data-who]").forEach(b => b.onclick = () => post("/api/who", {who: b.dataset.who}).then(show));
-$("#run").onclick = () => post("/api/run", {run: true}).then(show);
-$("#stop").onclick = () => post("/api/run", {run: false}).then(show);
-$("#forget").onclick = () => post("/api/forget");
+function setLink(ok) {
+  $("#linktext").textContent = ok ? "Robot Connected" : "Link Lost";
+  $("#stage").classList.toggle("offline", !ok);
+  if (!ok) document.documentElement.style.setProperty("--state", "244,63,94");
+}
 
-// Tap on the live view = "this is me" (as fractions of the picture, so any screen size works)
+/* Ask for the status twice a second; three misses in a row = call it offline. */
+setInterval(() => fetch("/api/status").then(r => r.json()).then(show).catch(() => {
+  if (++misses >= 3) setLink(false);
+}), 500);
+
+/* ---- Buttons ----------------------------------------------------------------- */
+all("[data-mode]").forEach(b => b.onclick = () => {
+  show({...last, mode: b.dataset.mode});                   // react instantly...
+  post("/api/mode", {mode: b.dataset.mode}).then(show);    // ...then trust the robot's answer
+  buzz(10);
+});
+all("[data-who]").forEach(b => b.onclick = () => {
+  show({...last, who: b.dataset.who});
+  post("/api/who", {who: b.dataset.who}).then(show);
+  buzz(10);
+});
+const go   = () => { buzz(15); post("/api/run", {run: true}).then(show); };
+const halt = () => { buzz([20, 40, 20]); post("/api/run", {run: false}).then(show); };
+$("#run").onclick = $("#run2").onclick = go;
+$("#stop").onclick = $("#stop2").onclick = halt;
+$("#forget").onclick = () => { buzz(10); post("/api/forget"); };
+
+/* The bottom Start/STOP bar appears only once the hero's own buttons scroll out of sight,
+   so on a phone there is always one pair of them on screen - never two. */
+new IntersectionObserver(
+  ([e]) => $("#bar").classList.toggle("up", !e.isIntersecting),
+  {threshold: 0.1}
+).observe($(".acts"));
+
+/* ---- Tap the feed = "this is me" ---------------------------------------------
+   Sent as fractions of the picture (0…1), so any screen size works. */
 $("#view").onclick = e => {
   const r = e.target.getBoundingClientRect();
   post("/api/click", {x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height});
+  const ring = $("#ping-ring");
+  ring.style.left = (e.clientX - r.left) + "px";
+  ring.style.top  = (e.clientY - r.top) + "px";
+  ring.classList.remove("go"); void ring.offsetWidth; ring.classList.add("go");
+  buzz(10);
 };
+/* Video stopped (WiFi hiccup, robot restarted)? Ask for a fresh stream. */
+$("#view").onerror = () => setTimeout(() => { $("#view").src = "/stream?t=" + Date.now(); }, 1500);
 
-// Ask for the status twice a second; show "no connection" if the robot doesn't answer
-setInterval(() => fetch("/api/status").then(r => r.json()).then(show).catch(() => {
-  $("#dot").className = "bad";
-  $("#dot").textContent = "no connection";
-}), 500);
-
-// Joystick: up = forward, sideways = turn. Sent 10x/s while touched;
-// the robot stops by itself if updates stop arriving for 0.5 s.
+/* ---- Joystick -----------------------------------------------------------------
+   Up = forward, sideways = turn. Sent 10x a second while held; the robot stops by
+   itself if the updates stop arriving (MANUAL_TIMEOUT in follow.py). */
 const pad = $("#pad"), knob = $("#knob");
 let cmd = null;
-function move(e) {
-  const r = pad.getBoundingClientRect(), c = v => Math.max(-1, Math.min(1, v));
-  const x = c((e.clientX - r.left) / r.width * 2 - 1);
-  const y = c((e.clientY - r.top) / r.height * 2 - 1);
-  knob.style.left = 80 + x * 80 + "px";
-  knob.style.top = 80 + y * 80 + "px";
-  cmd = {fwd: Math.round(-y * 100), turn: Math.round(x * 100)};
+
+function setKnob(x, y) {                        // x, y from -1 to 1
+  knob.style.left = (50 + x * 36) + "%";
+  knob.style.top  = (50 + y * 36) + "%";
+  const fwd = Math.round(-y * 100), turn = Math.round(x * 100);
+  $("#readout").textContent = `FWD ${fwd} · TURN ${turn}`;
+  return {fwd, turn};
+}
+function fromPointer(e) {
+  const r = pad.getBoundingClientRect();
+  let x = (e.clientX - r.left) / r.width * 2 - 1;
+  let y = (e.clientY - r.top) / r.height * 2 - 1;
+  const d = Math.hypot(x, y);
+  if (d > 1) { x /= d; y /= d; }                // keep the knob inside the circle
+  cmd = setKnob(x, y);
 }
 function release() {
+  pad.classList.remove("held");
+  setKnob(0, 0);
   cmd = null;
-  knob.style.left = knob.style.top = "80px";
-  post("/api/drive", {fwd: 0, turn: 0});
+  post("/api/drive", {fwd: 0, turn: 0});        // stop now, don't wait for the timeout
 }
-pad.onpointerdown = e => { pad.setPointerCapture(e.pointerId); move(e); };
-pad.onpointermove = e => { if (pad.hasPointerCapture(e.pointerId)) move(e); };
+pad.onpointerdown = e => { pad.setPointerCapture(e.pointerId); pad.classList.add("held"); fromPointer(e); };
+pad.onpointermove = e => { if (pad.hasPointerCapture(e.pointerId)) fromPointer(e); };
 pad.onpointerup = pad.onpointercancel = release;
 setInterval(() => { if (cmd) post("/api/drive", cmd); }, 100);
+
+/* ---- Keyboard (laptop): WASD / arrows drive, space = STOP ---------------------- */
+const keys = new Set();
+const KEYMAP = {w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
+                arrowup: [0, -1], arrowdown: [0, 1], arrowleft: [-1, 0], arrowright: [1, 0]};
+function keyDrive() {
+  if (!keys.size) return release();
+  let x = 0, y = 0;
+  keys.forEach(k => { x += KEYMAP[k][0]; y += KEYMAP[k][1]; });
+  pad.classList.add("held");
+  cmd = setKnob(Math.max(-1, Math.min(1, x)), Math.max(-1, Math.min(1, y)));
+}
+addEventListener("keydown", e => {
+  const k = e.key.toLowerCase();
+  if (k === " ") { e.preventDefault(); halt(); return; }
+  if (last.mode === "manual" && KEYMAP[k]) { e.preventDefault(); keys.add(k); keyDrive(); }
+});
+addEventListener("keyup", e => { if (keys.delete(e.key.toLowerCase())) keyDrive(); });
+addEventListener("blur", release);                                   // phone locked / tab left
+document.addEventListener("visibilitychange", () => document.hidden && release());
+
+/* ================= Background effects ==========================================
+   Pure decoration, drawn by YOUR phone - the Pi does none of this work.
+   The ✦ button in the corner turns them off (and remembers your choice). */
+let fxOn = localStorage.getItem("fx") !== "off";
+const dragonOn = () => fxOn && !matchMedia("(pointer: coarse)").matches;   // not on touch screens
+function applyFx() {
+  $("#fx").classList.toggle("on", fxOn);
+  $("#rain").style.display = fxOn ? "" : "none";
+  $("#dragon").hidden = !dragonOn();
+}
+$("#fx").onclick = () => { fxOn = !fxOn; localStorage.setItem("fx", fxOn ? "on" : "off"); applyFx(); };
+applyFx();
+
+/* ---- rain: falls faster and changes color with the robot's state ---- */
+const rain = $("#rain"), rctx = rain.getContext("2d");
+let rw, rh, drops = [], rainSpeed = 1, rainTarget = 1, rainColor = [255, 255, 255];
+
+function makeRain() {
+  rw = rain.width = innerWidth; rh = rain.height = innerHeight;
+  drops = [];
+  const count = Math.min(220, Math.floor(rw * rh / 7000));
+  for (let i = 0; i < count; i++) {
+    const back = Math.random() > 0.3;                       // most drops are faint and far away
+    drops.push({x: Math.random() * rw, y: Math.random() * rh,
+                len: back ? Math.random() * 10 + 5 : Math.random() * 20 + 10,
+                v: back ? Math.random() * 2 + 1 : Math.random() * 4 + 2,
+                a: back ? Math.random() * .12 + .04 : Math.random() * .25 + .08,
+                w: back ? .5 : 1.2});
+  }
+}
+addEventListener("resize", makeRain); makeRain();
+
+function animateRain() {
+  requestAnimationFrame(animateRain);
+  if (!fxOn) return;
+  rctx.clearRect(0, 0, rw, rh);
+  rainSpeed += (rainTarget - rainSpeed) * .05;              // ease into the new speed
+  const [r, g, b] = rainColor;
+  for (const d of drops) {
+    d.y += d.v * rainSpeed;
+    if (d.y > rh + 50) { d.y = -50; d.x = Math.random() * rw; }
+    rctx.beginPath();
+    rctx.strokeStyle = `rgba(${r},${g},${b},${d.a})`;
+    rctx.lineWidth = d.w;
+    rctx.moveTo(d.x, d.y);
+    rctx.lineTo(d.x, d.y + d.len * (rainSpeed > 1 ? rainSpeed * .5 : 1));   // stretches when fast
+    rctx.stroke();
+  }
+}
+animateRain();
+
+/* ---- the dragon that follows your cursor (laptops only) ---- */
+const svgNS = "http://www.w3.org/2000/svg", screenG = $("#screen");
+const N = 34, parts = [];
+const pointer = {x: innerWidth / 2, y: innerHeight / 2};
+for (let i = 0; i < N; i++) parts[i] = {use: null, x: innerWidth / 2, y: 0};
+for (let i = 1; i < N; i++) {
+  const use = document.createElementNS(svgNS, "use");
+  use.setAttribute("href", i === 1 ? "#Cabeza" : "#Espina");
+  parts[i].use = use;
+  screenG.prepend(use);
+}
+addEventListener("pointermove", e => { pointer.x = e.clientX; pointer.y = e.clientY; });
+(function runDragon() {
+  requestAnimationFrame(runDragon);
+  if (!dragonOn()) return;
+  const [r, g, b] = rainColor;
+  $("#dragon").style.color = `rgba(${r},${g},${b},.35)`;
+  parts[0].x += (pointer.x - parts[0].x) / 10;
+  parts[0].y += (pointer.y - parts[0].y) / 10;
+  for (let i = 1; i < N; i++) {
+    const e = parts[i], p = parts[i - 1];
+    const a = Math.atan2(e.y - p.y, e.x - p.x);
+    e.x += (p.x - e.x + Math.cos(a) * (100 - i) / 5) / 4;
+    e.y += (p.y - e.y + Math.sin(a) * (100 - i) / 5) / 4;
+    const s = (162 + 4 * (1 - i)) / 75;
+    e.use.setAttribute("transform",
+      `translate(${(p.x + e.x) / 2},${(p.y + e.y) / 2}) rotate(${180 / Math.PI * a}) scale(${s},${s})`);
+  }
+})();
 </script>
 </body>
 </html>

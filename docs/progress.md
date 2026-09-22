@@ -11,6 +11,7 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 | 4b | Top-view simulator (`steps/04b_simulator.py`): drag yourself and a stranger, watch the robot decide |
 | 5 | Face detection (YuNet) with two modes: **Simple** (biggest face) and **Smart** (locks onto you, recognizes you with SFace, ignores strangers) |
 | 6 | The robot program `pi/follow.py` + phone dashboard (`pi/web.py`): color / face / manual, Start-STOP, joystick, tap-your-face. Verified on the laptop and on the Pi, viewed from a phone. |
+| 6b | Dashboard redesigned in the SentryCore style (glass panels, the page tints itself with the robot's state, animated background). Plain CSS, no CDN, so it still looks right on the robot's own hotspot. |
 | Pi setup | Pi 4 with Raspberry Pi OS Lite 64-bit, code cloned from GitHub, `deploy/setup_pi.sh` run, `tools/pi_check.py` passing |
 
 ## Measured (not estimated)

@@ -9,7 +9,7 @@ A two-wheeled robot that follows a colored target or a person's face, and can be
 - **Color mode** — finds a hardcoded color, turns toward it, drives up to it and stops at a set distance.
 - **Face mode** — finds a face and follows it at about 1.5 m, like a dog following you.
 - **Manual mode** — drive it yourself with an on-screen joystick.
-- **Phone dashboard** — live camera view with the detection box, mode buttons, Start and STOP.
+- **Phone dashboard** — live camera view with the detection box, mode buttons, Engage and STOP. The page tints itself with what the robot is doing: green following, amber searching, red backing up.
 - **Safe by default** — boots stopped, and stops on its own if the target, the phone or the Pi goes quiet.
 
 ## How it works
