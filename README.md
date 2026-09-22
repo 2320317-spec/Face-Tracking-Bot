@@ -80,7 +80,7 @@ On Linux or the Pi, use `.venv/bin/python` instead of `.venv\Scripts\python`. In
 
 **On the PC** — details in [steps/README.md](steps/README.md)
 
-- [ ] 1. Live camera feed + FPS counter
+- [x] 1. Live camera feed + FPS counter
 - [ ] 2. Live color detection — box, center `x`, width `w`
 - [ ] 3. HSV tuner with sliders
 - [ ] 4. Decision logic — `x` and `w` → `fwd turn` command
