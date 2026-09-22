@@ -39,7 +39,12 @@ class Shared:
         self.forget = False         # "Forget me" was pressed
         self.jpeg = None            # newest live-view picture (JPEG bytes), made by follow.py
         self.viewers = 0            # how many live views are open (0 = follow.py skips making pictures)
+        self.snapshot_t = 0.0       # when a single picture was last asked for (see /frame.jpg)
         self.status = {}            # what follow.py reports: state, fps, ... (shown on the page)
+
+    def wanted(self):
+        """Is anybody looking? If not, follow.py skips drawing and compressing the picture."""
+        return self.viewers > 0 or time.time() - self.snapshot_t < 2
 
 
 def create_app(shared):
@@ -61,19 +66,41 @@ def create_app(shared):
         def pictures():
             shared.viewers += 1
             try:
+                sent = None
                 while True:
                     jpg = shared.jpeg
-                    if jpg is not None:
-                        yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + jpg + b"\r\n"
+                    if jpg is not None and jpg is not sent:      # only send pictures we haven't sent yet
+                        sent = jpg
+                        # Content-Length on every part: without it Safari (iPhone / iPad) often
+                        # shows nothing at all, because it waits for a part to be "finished".
+                        yield (b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: "
+                               + str(len(jpg)).encode() + b"\r\n\r\n" + jpg + b"\r\n")
                     time.sleep(1 / STREAM_FPS)
             finally:
                 shared.viewers -= 1                             # the page was closed
-        return Response(pictures(), mimetype="multipart/x-mixed-replace; boundary=frame")
+        return Response(pictures(), mimetype="multipart/x-mixed-replace; boundary=frame",
+                        headers={"Cache-Control": "no-store, no-cache, must-revalidate, private",
+                                 "Pragma": "no-cache", "Age": "0", "X-Accel-Buffering": "no"})
+
+    @app.get("/frame.jpg")
+    def frame():
+        """ONE picture, for browsers that can't show the never-ending stream above.
+        The page asks for these about 8 times a second instead. Slightly choppier,
+        but it works everywhere - including Safari on an iPad."""
+        shared.snapshot_t = time.time()                     # tell follow.py somebody is watching
+        old, deadline = shared.jpeg, time.time() + 1.5
+        while shared.jpeg is old and time.time() < deadline:  # wait for a picture newer than the last
+            time.sleep(0.02)
+        if shared.jpeg is None:
+            return "no picture yet", 503
+        return Response(shared.jpeg, mimetype="image/jpeg",
+                        headers={"Cache-Control": "no-store, no-cache", "Pragma": "no-cache"})
 
     @app.get("/api/status")
     def status():
         """Everything the page shows. It asks twice a second."""
-        return jsonify(shared.status | {"mode": shared.mode, "who": shared.who, "running": shared.running})
+        return jsonify(shared.status | {"mode": shared.mode, "who": shared.who,
+                                        "running": shared.running, "viewers": shared.viewers})
 
     @app.post("/api/mode")
     def mode():

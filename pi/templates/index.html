@@ -305,7 +305,7 @@
       <div class="sec-title"><i></i><span class="label">Optical Feed</span></div>
       <div class="glass feed">
         <div class="feed-bar">
-          <div class="left"><span class="ping"><i></i><b></b></span><span class="label" id="feedmode">Color Tracking</span></div>
+          <div class="left"><span class="ping"><i></i><b></b></span><span class="label" id="feedmode">Color Tracking</span><span class="label" id="feedhow"></span></div>
           <span class="label mono right">OPENCV_1 · 480×360</span>
         </div>
         <div id="stage">
@@ -471,6 +471,7 @@ function show(s) {
     else if (s.knows_you) info.push(`Knows your face · <b>${s.prints}/${s.learn_max}</b> snapshots learned.`);
     else info.push("Doesn't know you yet — tap your face, or the next face it sees becomes you.");
   }
+  if (snapshots) info.push("Live view: still pictures — this browser wouldn't show the video stream.");
   info.push(on ? "Motors armed." : "Motors idle — press Engage when the robot is on the floor.");
   $("#info").innerHTML = info.join("<br>");
 }
@@ -521,8 +522,43 @@ $("#view").onclick = e => {
   ring.classList.remove("go"); void ring.offsetWidth; ring.classList.add("go");
   buzz(10);
 };
-/* Video stopped (WiFi hiccup, robot restarted)? Ask for a fresh stream. */
-$("#view").onerror = () => setTimeout(() => { $("#view").src = "/stream?t=" + Date.now(); }, 1500);
+/* ---- Keeping a picture on the screen ------------------------------------------
+   The live view is an MJPEG stream: one never-ending reply that keeps sending new
+   JPEGs. It is the smoothest way, but some browsers refuse to show it - Safari on
+   an iPhone or iPad is the usual one, and it often works once and then stays black
+   after a reload.
+   So: if no picture has arrived a few seconds after opening the page, we quietly
+   switch to asking for ONE picture at a time, about 8 per second. Slightly
+   choppier, works everywhere. */
+const view = $("#view");
+let snapshots = false, waiting = false, retries = 0;
+
+function useSnapshots() {
+  if (snapshots) return;
+  snapshots = true;
+  $("#feedhow").textContent = "· stills";
+  view.src = "";                                   // drop the stream connection
+}
+
+function nextSnapshot() {
+  if (!snapshots || waiting || document.hidden) return;
+  waiting = true;
+  const next = new Image();                        // load it out of sight first, so the
+  next.onload = () => { view.src = next.src; waiting = false; };   // picture never blinks
+  next.onerror = () => { waiting = false; };
+  next.src = "/frame.jpg?t=" + Date.now();
+}
+setInterval(nextSnapshot, 120);
+
+// Nothing at all after 5 seconds? The stream isn't going to work here.
+setTimeout(() => { if (!view.naturalWidth) useSnapshots(); }, 5000);
+
+// Stream broke (WiFi hiccup, robot restarted): try twice, then give up and use stills.
+view.onerror = () => {
+  if (snapshots) return;
+  if (++retries > 2) return useSnapshots();
+  setTimeout(() => { view.src = "/stream?t=" + Date.now(); }, 1500);
+};
 
 /* ---- Joystick -----------------------------------------------------------------
    Up = forward, sideways = turn. Sent 10x a second while held; the robot stops by

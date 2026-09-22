@@ -240,7 +240,7 @@ def main():
                 "knows_you": lock.knows_you(), "prints": len(lock.prints), "learn_max": LEARN_MAX,
                 "recognizer": tools.recognizer is not None, "uno": uno is not None,
             }
-            if shared.viewers:                          # only draw the live view if someone is watching
+            if shared.wanted():                         # only draw the live view if someone is watching
                 shared.jpeg = live_view(frame, mode, who, box, faces, followed, lock,
                                         state_text, fwd, turn)
     except KeyboardInterrupt:
