@@ -69,6 +69,7 @@ Try each step yourself first. The build plan has a finished reference for each p
 
 ### Step 6 — `pi/follow.py` + `pi/web.py`: the real program
 
-- **Goal:** combine steps 1–5 into one program with the three modes, a `--dry` flag (runs without the Uno), and the phone dashboard (Flask).
-- **Done when:** `python pi/follow.py --dry` runs on the laptop, and `http://localhost:8000` shows the live view and switches modes.
-- **Plan:** 5.8, 5.9.
+- **Goal:** combine steps 1–5 into one program with three modes (color / face with Simple + Smart / manual), a `--dry` flag (runs without the Uno), and the phone dashboard (Flask): live view, mode buttons, Start / STOP, joystick, tap-your-face.
+- **Shared code:** the brain and the vision now live in `pi/brain.py` and `pi/vision.py`; steps 4, 4b and 5 import them from there, so there's one copy to tune.
+- **Done when:** `.venv\Scripts\python pi\follow.py --dry --camera 1` runs on the laptop, and `http://localhost:8000` shows the live view and switches modes. Then the same with `--dry` on the Pi.
+- **Details:** [pi/README.md](../pi/README.md).

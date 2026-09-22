@@ -2,7 +2,7 @@
 # Step 4b - robot simulator (top view)
 # =============================================================================
 # A virtual robot shaped like the real one - wheels at the front, camera at the
-# front, free wheel at the back - driven by the SAME brain as step 4 (brain.py).
+# front, free wheel at the back - driven by the SAME brain as the robot (pi/brain.py).
 #
 # The loop it runs, 30 times a second (like the real robot will):
 #   1. SEE     work out where each person would appear in the robot's camera (x, w)
@@ -30,11 +30,15 @@
 #        m = color / face mode   r = reset   space = pause   q = quit
 # =============================================================================
 import math
+import os
+import sys
 from collections import deque
 
 import cv2
 import numpy as np
 
+# Use the robot's own brain (pi/brain.py): tune it there and the simulator shows the effect
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pi"))
 from brain import W, BANDS, DEAD_ZONE, ALIGN_ZONE, Follower, wheels, describe
 
 

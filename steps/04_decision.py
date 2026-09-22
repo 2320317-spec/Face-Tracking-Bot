@@ -1,7 +1,7 @@
 # =============================================================================
 # Step 4 - decision logic (webcam)
 # =============================================================================
-# Finds the yellow target (like step 2) and lets the brain (brain.py) decide
+# Finds the yellow target (like step 2) and lets the brain (pi/brain.py) decide
 # what the robot would do. No motors yet - the decision is drawn on screen:
 #   state   FOLLOW / HOLD / BACK   (distance, from the target's width w)
 #           SEARCHING left/right   (target lost: the robot would sweep to find it -
@@ -9,47 +9,25 @@
 #   command fwd and turn, each -100..100 %, plus the same thing in words
 #   wheels  two bars in the bottom corners: up = forward (green), down = reverse (red)
 #
-# All the thresholds (stop distance, dead zone, speeds, search...) live in brain.py.
+# Thresholds (stop distance, dead zone, speeds, search...) live in pi/brain.py,
+# the color ranges (COLOR, COLORS) in pi/vision.py - the same files the robot uses.
 # Color mode follows the first yellow thing it finds - there's no "who" for colors.
 #
 # Run:  .venv\Scripts\python steps\04_decision.py
 # Keys: q = quit (click the video window first)
 # =============================================================================
+import os
 import sys
 import time
 
 import cv2
-import numpy as np
 
+# Use the robot's own code in pi/ (brain.py, vision.py), so there's only one copy to tune
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pi"))
 from brain import W, H, DEAD_ZONE, ALIGN_ZONE, Follower, wheels, describe
+from vision import find_color          # step 2's color detection: returns (box, mask)
 
 CAMERA = 0             # which camera: 0 = first, 1 = second
-
-
-# ---- Color detection (same as step 2 - see there for what the numbers mean) --------
-COLOR = "yellow"
-COLORS = {             # (lowest H, S, V), (highest H, S, V)   OpenCV hue goes 0-179
-    "yellow": ((22, 120, 100), (38, 255, 255)),
-    "green":  ((40, 100, 80),  (80, 255, 255)),
-    "orange": ((10, 150, 100), (25, 255, 255)),
-}
-MIN_AREA = 300                      # blobs smaller than this many pixels are noise
-KERNEL = np.ones((3, 3), np.uint8)  # 3x3 square for erasing specks
-
-
-def find_color(frame):
-    """Return (box, mask). box = (x, y, w, h) of the biggest COLOR blob, or None."""
-    lo, hi = COLORS[COLOR]
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    mask = cv2.inRange(hsv, np.array(lo), np.array(hi))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, KERNEL)
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    if not contours:
-        return None, mask
-    biggest = max(contours, key=cv2.contourArea)
-    if cv2.contourArea(biggest) < MIN_AREA:
-        return None, mask
-    return cv2.boundingRect(biggest), mask
 
 
 # ---- Drawing helpers -----------------------------------------------------------------

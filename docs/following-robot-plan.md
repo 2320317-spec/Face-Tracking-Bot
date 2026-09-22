@@ -302,6 +302,8 @@ What this means:
 
 ## 5. Software
 
+> **The working code is in the repository, and it has grown past this section.** The code below is the original design reference. The real program in `pi/` adds searching when the target is lost, Simple / Smart face modes with face recognition, and tap-your-face on the dashboard; it's split into `pi/brain.py` (decisions), `pi/vision.py` (camera, colors, faces), `pi/follow.py` (the program) and `pi/web.py` (dashboard). Where this section and the code differ, **the code is right** — see [pi/README.md](../pi/README.md).
+
 ### 5.1 Project layout
 
 The project is a Git repository (on GitHub); every folder has a `README.md` explaining what goes in it.

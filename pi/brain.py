@@ -1,8 +1,9 @@
 # =============================================================================
 # brain.py - the robot's decision logic ("the brain")
 # =============================================================================
-# Shared by step 4 (webcam), step 4b (simulator) and step 5 (faces), so every
-# setting below is changed in ONE place and all of them use it.
+# Used by the robot program (follow.py) and by steps 4, 4b (simulator) and 5,
+# so every setting below is changed in ONE place and all of them use it.
+# Tune something here and the simulator shows you the effect right away.
 #
 # INPUT  - where the target is in the camera picture:
 #            x = center of the target, in pixels from the left edge (0 .. 480)

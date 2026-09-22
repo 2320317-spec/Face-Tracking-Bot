@@ -1,0 +1,144 @@
+<!doctype html>
+<!-- FollowBot phone dashboard. Served by web.py; talks to it with /api/... requests. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FollowBot</title>
+<style>
+  :root { --bg: #111; --panel: #1c1c1c; --btn: #333; --text: #eee; --dim: #999;
+          --blue: #2a7de1; --green: #2e9e4f; --red: #d62d20; --orange: #e8891c; --yellow: #d8b41c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 10px; background: var(--bg); color: var(--text);
+         font-family: system-ui, sans-serif; display: flex; flex-direction: column;
+         align-items: center; gap: 10px; }
+  header { width: 100%; max-width: 480px; display: flex; justify-content: space-between; align-items: center; }
+  h1 { font-size: 20px; margin: 0; }
+  #dot { font-size: 13px; color: var(--dim); }
+  #dot.ok::before { content: "● "; color: var(--green); }
+  #dot.bad::before { content: "● "; color: var(--red); }
+  #view { width: 100%; max-width: 480px; aspect-ratio: 4 / 3; background: #000; border-radius: 8px; }
+  #state { font-size: 18px; font-weight: bold; }
+  #state.follow { color: #4cd07d; }  #state.hold { color: var(--yellow); }  #state.back { color: #ff5a4f; }
+  #state.search { color: var(--orange); }  #state.lost, #state.idle { color: var(--dim); }
+  #state.manual { color: #6aa8ff; }
+  #details, #info { font: 13px monospace; color: var(--dim); text-align: center; max-width: 480px; }
+  .row { display: flex; gap: 8px; width: 100%; max-width: 480px; }
+  .row[hidden] { display: none; }
+  button { flex: 1; padding: 14px 0; font-size: 16px; border: 0; border-radius: 8px;
+           background: var(--btn); color: var(--text); }
+  button.on { background: var(--blue); }
+  #run.on { background: var(--green); }
+  #stop { background: var(--red); font-weight: bold; }
+  #pad { width: 220px; height: 220px; border-radius: 50%; background: var(--panel);
+         border: 2px solid #444; position: relative; touch-action: none; }
+  #knob { position: absolute; left: 80px; top: 80px; width: 60px; height: 60px;
+          border-radius: 50%; background: var(--blue); pointer-events: none; }
+  .hint { font-size: 12px; color: var(--dim); }
+</style>
+</head>
+<body>
+<header><h1>FollowBot</h1><span id="dot">connecting…</span></header>
+
+<img id="view" src="/stream" alt="live view">
+<div id="state">…</div>
+<div id="details"></div>
+
+<div class="row">
+  <button data-mode="color">Color</button>
+  <button data-mode="face">Face</button>
+  <button data-mode="manual">Manual</button>
+</div>
+
+<div class="row" id="facerow" hidden>
+  <button data-who="simple">Simple</button>
+  <button data-who="smart">Smart</button>
+  <button id="forget">Forget me</button>
+</div>
+<div class="hint" id="facehint" hidden>Smart: tap your face in the picture = "this is me"</div>
+
+<div class="row">
+  <button id="run">Start</button>
+  <button id="stop">STOP</button>
+</div>
+
+<div id="pad" hidden><div id="knob"></div></div>
+<div id="info"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+
+// Send a command to the robot. Returns the new status (or null for "no content" answers).
+const post = (url, body = {}) => fetch(url, {
+  method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body),
+}).then(r => r.status === 204 ? null : r.json());
+
+// Update the page from the robot's status.
+function show(s) {
+  if (!s) return;
+  $("#dot").className = "ok";
+  $("#dot").textContent = "connected";
+  document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === s.mode));
+  document.querySelectorAll("[data-who]").forEach(b => b.classList.toggle("on", b.dataset.who === s.who));
+  $("#facerow").hidden = s.mode !== "face";
+  $("#facehint").hidden = !(s.mode === "face" && s.who === "smart");
+  $("#pad").hidden = s.mode !== "manual";
+  $("#run").classList.toggle("on", s.running);
+  $("#run").textContent = s.running ? "Running" : "Start";
+  $("#state").textContent = s.state ?? "…";
+  $("#state").className = s.kind ?? "";
+  $("#details").textContent = [s.mode + (s.mode === "face" ? " · " + s.who : ""),
+                               "w=" + (s.w ?? "-"), "cmd " + (s.cmd ?? "-"), (s.fps ?? "-") + " fps"].join("  ·  ");
+  const info = [];
+  if (s.uno === false) info.push("no Uno (--dry): nothing is sent to the motors");
+  if (s.mode === "face" && s.who === "smart") {
+    if (!s.recognizer) info.push("no recognition model: follows by position only");
+    else if (s.knows_you) info.push(`knows you (${s.prints}/${s.learn_max} fingerprints)`);
+    else info.push("doesn't know you yet: tap your face, or the next face = you");
+  }
+  $("#info").textContent = info.join("  ·  ");
+}
+
+// Buttons
+document.querySelectorAll("[data-mode]").forEach(b => b.onclick = () => post("/api/mode", {mode: b.dataset.mode}).then(show));
+document.querySelectorAll("[data-who]").forEach(b => b.onclick = () => post("/api/who", {who: b.dataset.who}).then(show));
+$("#run").onclick = () => post("/api/run", {run: true}).then(show);
+$("#stop").onclick = () => post("/api/run", {run: false}).then(show);
+$("#forget").onclick = () => post("/api/forget");
+
+// Tap on the live view = "this is me" (as fractions of the picture, so any screen size works)
+$("#view").onclick = e => {
+  const r = e.target.getBoundingClientRect();
+  post("/api/click", {x: (e.clientX - r.left) / r.width, y: (e.clientY - r.top) / r.height});
+};
+
+// Ask for the status twice a second; show "no connection" if the robot doesn't answer
+setInterval(() => fetch("/api/status").then(r => r.json()).then(show).catch(() => {
+  $("#dot").className = "bad";
+  $("#dot").textContent = "no connection";
+}), 500);
+
+// Joystick: up = forward, sideways = turn. Sent 10x/s while touched;
+// the robot stops by itself if updates stop arriving for 0.5 s.
+const pad = $("#pad"), knob = $("#knob");
+let cmd = null;
+function move(e) {
+  const r = pad.getBoundingClientRect(), c = v => Math.max(-1, Math.min(1, v));
+  const x = c((e.clientX - r.left) / r.width * 2 - 1);
+  const y = c((e.clientY - r.top) / r.height * 2 - 1);
+  knob.style.left = 80 + x * 80 + "px";
+  knob.style.top = 80 + y * 80 + "px";
+  cmd = {fwd: Math.round(-y * 100), turn: Math.round(x * 100)};
+}
+function release() {
+  cmd = null;
+  knob.style.left = knob.style.top = "80px";
+  post("/api/drive", {fwd: 0, turn: 0});
+}
+pad.onpointerdown = e => { pad.setPointerCapture(e.pointerId); move(e); };
+pad.onpointermove = e => { if (pad.hasPointerCapture(e.pointerId)) move(e); };
+pad.onpointerup = pad.onpointercancel = release;
+setInterval(() => { if (cmd) post("/api/drive", cmd); }, 100);
+</script>
+</body>
+</html>
