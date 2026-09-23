@@ -51,9 +51,14 @@ W, H = 480, 360
 #   Goes forward, back, forward...  -> move BACKUP further above STOP
 #   Faces: keep RESUME at 30 or more (faces under ~26 px aren't detected)
 BANDS = {
-    "color": (64, 83, 104),     # 20 cm target:     ~1.3 m / 1.0 m / 0.8 m
-    "face":  (45, 62, 83),      # face (~15 cm):    ~1.4 m / 1.0 m / 0.75 m
+    "color": (92, 128, 166),    # 20 cm target:     ~0.9 m / 0.65 m / 0.5 m
+    "face":  (69, 96, 125),     # face (~15 cm):    ~0.9 m / 0.65 m / 0.5 m
 }
+# NOTE for face mode: following this close only works if the camera can SEE your face
+# that close. Mounted 20 cm up and tilted 30 deg, at 0.65 m the camera is looking at
+# the region 0.28-1.07 m above the floor - your hip, not your head. See section 4.4 of
+# the build plan. To follow a standing person at 0.65 m the camera needs to be about
+# 45-50 cm up and tilted ~45 deg. Sitting at a desk, the current mount is fine.
 
 
 # ---- 2. STEERING: zones across the picture (pixels from the center) --------
