@@ -57,6 +57,7 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 
 **Can be done any time (no Uno needed):**
 
+0. **Try the tricks in the simulator** (`steps/04b_simulator.py`, keys 1–4). Written and tested, but the user hasn't watched them yet. If the dance feels too slow or twitchy, `BEAT` in `pi/moves.py` is the one number that sets the rhythm.
 2. **The all-in-one web page** — fold the HSV tuner and the top-view simulator into the dashboard. The user picked this as the next task. Pure code, no hardware.
 3. **Step 11b — the hotspot.** `deploy/hotspot.sh` is written and tested against stubs, but never run on the Pi. `sudo HOTSPOT_PASS='…' bash deploy/hotspot.sh boot-on`, reboot, join **FollowBot**, open `http://10.42.0.1:8000`. Run `boot-off` afterwards.
 4. **Step 9 — assemble:** mount the camera ~20 cm up, tilted ~30°.
