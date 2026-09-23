@@ -102,6 +102,7 @@ On Linux or the Pi, use `.venv/bin/python` instead of `.venv\Scripts\python`. In
 - [Where the project stands](docs/progress.md) — what works, measured speeds, what's left. **Start here.**
 - [Build plan](docs/following-robot-plan.md) — design, parts, wiring, code reference, build sequence, troubleshooting.
 - [Raspberry Pi setup](docs/pi-setup.md) — step by step, from a blank SD card to a checked Pi.
+- [LLM companion](docs/llm-companion.md) — idea, not built: talking to the robot with a local model on the laptop.
 
 ## Acknowledgements
 

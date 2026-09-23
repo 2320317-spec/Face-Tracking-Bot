@@ -69,6 +69,7 @@ Updated 24 September 2026. Short status of the build: what works, what's measure
 ## Ideas parked for later
 
 - **One local web page for everything:** the dashboard plus HSV tuning and the simulator as a control panel.
+- **[LLM companion](llm-companion.md)** — a local model on the laptop that takes spoken/typed commands, explains the robot's own decisions, and writes new dances. Written up in full; the user liked all six features. Nothing built.
 - **Follow your body** once your face is found, so it can follow you when you turn away.
 - **Brighten dark faces** (CLAHE) if the demo room's ceiling lights make faces hard to detect.
 - **Lock the webcam's frame rate** so dim light doesn't drop it to 12 fps (`v4l2-ctl --list-ctrls`, look for `exposure_dynamic_framerate`).
