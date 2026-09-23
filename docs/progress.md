@@ -14,6 +14,7 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 | 6b | Dashboard redesigned in the SentryCore style (glass panels, the page tints itself with the robot's state, animated background). Plain CSS, no CDN, so it still looks right on the robot's own hotspot. |
 | 7 | Uno sketch written (`uno/motor_controller/`): compiles for the Uno (16% of its memory), wheel mixing verified by hand, built-in `t` bench test. **Not yet uploaded — the Uno is away.** |
 | 11a | **Autostart works.** `deploy/install_service.sh` installed on the Pi; it boots, runs `follow.py` and serves the dashboard with no laptop. Options live in `/etc/default/followbot` (currently `--dry`). |
+| Tricks | `pi/moves.py`: spin, dance (single-single-double-double), nod, shake. Buttons on the dashboard, keys 1-4 in the simulator. Only play while running; STOP cancels. Timings checked against the simulator's motion model - spin is one full turn. |
 | Pi setup | Pi 4 with Raspberry Pi OS Lite 64-bit, code cloned from GitHub, `deploy/setup_pi.sh` run, `tools/pi_check.py` passing |
 
 ## Measured (not estimated)

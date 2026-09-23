@@ -18,6 +18,7 @@ import time
 from flask import Flask, Response, jsonify, render_template, request
 
 from brain import W, H
+from moves import MOVES
 
 
 # ---- Settings ---------------------------------------------------------------------
@@ -37,6 +38,7 @@ class Shared:
         self.joystick_t = 0.0       # when it arrived (the robot stops if it gets too old)
         self.click = None           # (x, y) in the robot's picture: "this face is me"
         self.forget = False         # "Forget me" was pressed
+        self.move = None            # a trick button was pressed: "spin" | "dance" | "nod" | "shake"
         self.jpeg = None            # newest live-view picture (JPEG bytes), made by follow.py
         self.viewers = 0            # how many live views are open (0 = follow.py skips making pictures)
         self.snapshot_t = 0.0       # when a single picture was last asked for (see /frame.jpg)
@@ -136,6 +138,16 @@ def create_app(shared):
         fraction = lambda v: max(0.0, min(1.0, float(v)))
         shared.click = (fraction(d.get("x", 0)) * W, fraction(d.get("y", 0)) * H)
         return "", 204
+
+    @app.post("/api/move")
+    def move():
+        """A trick button: {"move": "spin" | "dance" | "nod" | "shake"}.
+        follow.py picks it up on the next frame - and ignores it unless the robot
+        is running, so a trick can never start while it is STOPPED."""
+        name = body().get("move")
+        if name in MOVES:
+            shared.move = name
+        return status()
 
     @app.post("/api/forget")
     def forget():

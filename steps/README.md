@@ -51,6 +51,7 @@ Try each step yourself first. The build plan has a finished reference for each p
 
 - **Goal:** a top-down virtual robot, shaped like the real one (wheels and camera at the front, free wheel at the back), driven by the same `brain.py`. Its camera is simulated, so the whole loop runs: see → decide → drive → see again.
 - **Controls:** drag = move you · right-drag = move the stranger · `n` stranger on/off · `s` SIMPLE / SMART · `a` you walk by yourself · `m` color / face · `r` reset · space pause · `q` quit.
+- **Tricks:** `1` spin · `2` dance · `3` nod · `4` shake — the same routines the robot plays (`pi/moves.py`). Use it to check a new timing before the real robot tries it.
 - **On screen:** the camera's view cone, rings at the resume / stop / back-up distances, the path, the robot's camera view, the command and both wheel speeds.
 - **Try:** stranger on, then drag yourself behind the robot. It sweeps left and right to search; SIMPLE follows the first person it sees (the stranger), SMART ignores the stranger and keeps looking for you.
 - **Use it to:** try new settings in `brain.py` (`KP`, speeds, bands) and see the effect before the real robot exists.

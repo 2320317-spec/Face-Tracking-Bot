@@ -29,6 +29,7 @@ import time
 
 import cv2
 
+import moves
 import web
 from brain import W, H, DEAD_ZONE, ALIGN_ZONE, Follower, describe
 from vision import Camera, find_color, FaceTools, FaceLock, head_turn, LEARN_MAX, FOCAL, FACE_WIDTH_M
@@ -165,6 +166,7 @@ def main():
     tools = FaceTools()                     # the face models
     lock = FaceLock(tools)                  # Smart mode's memory: where you are, and who you are
     bot = Follower()                        # the brain
+    player = moves.Player()                 # the tricks: spin, dance, nod, shake
     shared = web.Shared(args.mode)          # shared with the web page
     web.start(shared, args.web_port)
     button = setup_button(shared)
@@ -186,6 +188,7 @@ def main():
                 mode, who = shared.mode, shared.who
                 bot.reset()
                 lock.reset()
+                player.stop()                           # a trick doesn't survive a mode change
             if shared.forget:                           # "Forget me"
                 lock.reset()
                 shared.forget = False
@@ -213,16 +216,27 @@ def main():
             # ---- 3. DECIDE ----
             if not shared.running:                      # STOPPED: wheels still, brain waits
                 bot.reset()
+                player.stop()                           # STOP also cancels a trick
+                shared.move = None                      # and forgets a button pressed while stopped
                 fwd, turn = 0, 0
                 state_text, kind = "STOPPED - press Start", "idle"
-            elif mode == "manual":                      # the joystick drives
-                fresh = time.time() - shared.joystick_t < MANUAL_TIMEOUT
-                jf, jt = shared.joystick if fresh else (0, 0)
-                fwd, turn = round(jf * MANUAL_FWD / 100), round(jt * MANUAL_TURN / 100)
-                state_text, kind = "MANUAL", "manual"
-            else:                                       # the brain decides (follow / hold / back / search)
-                fwd, turn = bot.update(target, mode)
-                state_text, kind = bot.status()
+            else:
+                if shared.move is not None:             # a trick button was pressed on the page
+                    player.start(shared.move)
+                    shared.move = None
+                trick = player.update()                 # None = no trick, or it just finished
+
+                if trick is not None:                   # a trick owns the wheels while it plays
+                    fwd, turn = trick
+                    state_text, kind = player.status()
+                elif mode == "manual":                  # the joystick drives
+                    fresh = time.time() - shared.joystick_t < MANUAL_TIMEOUT
+                    jf, jt = shared.joystick if fresh else (0, 0)
+                    fwd, turn = round(jf * MANUAL_FWD / 100), round(jt * MANUAL_TURN / 100)
+                    state_text, kind = "MANUAL", "manual"
+                else:                                   # the brain decides (follow / hold / back / search)
+                    fwd, turn = bot.update(target, mode)
+                    state_text, kind = bot.status()
 
             # ---- 4. ACT ----
             send(uno, fwd, turn)
@@ -239,6 +253,7 @@ def main():
                 "cmd": f"{fwd} {turn}", "fps": round(fps, 1), "faces": len(faces),
                 "knows_you": lock.knows_you(), "prints": len(lock.prints), "learn_max": LEARN_MAX,
                 "recognizer": tools.recognizer is not None, "uno": uno is not None,
+                "move": player.name,                    # which trick is playing, or nothing
             }
             if shared.wanted():                         # only draw the live view if someone is watching
                 shared.jpeg = live_view(frame, mode, who, box, faces, followed, lock,

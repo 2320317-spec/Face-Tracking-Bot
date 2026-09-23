@@ -28,6 +28,7 @@
 # Mouse: drag = move you   right-drag = move the stranger
 # Keys:  s = simple / smart   n = stranger on / off   a = you walk around by yourself
 #        m = color / face mode   r = reset   space = pause   q = quit
+#        1 = spin   2 = dance   3 = nod   4 = shake   (the tricks, from pi/moves.py)
 # =============================================================================
 import math
 import os
@@ -40,6 +41,7 @@ import numpy as np
 # Use the robot's own brain (pi/brain.py): tune it there and the simulator shows the effect
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pi"))
 from brain import W, BANDS, DEAD_ZONE, ALIGN_ZONE, Follower, wheels, describe
+import moves                                # the tricks: spin, dance, nod, shake
 
 
 # ---- The virtual room --------------------------------------------------------
@@ -75,7 +77,8 @@ BLUE, ORANGE, RED = (232, 162, 0), (39, 127, 255), (36, 28, 237)     # wheels, c
 TEXT = (40, 40, 40)
 # Color of the state text, by what the brain is doing (see brain.py, Follower.status)
 STATE_COLORS = {"follow": (0, 150, 0), "hold": (0, 140, 230), "back": (0, 0, 220),
-                "search": (0, 110, 255), "lost": (120, 120, 120), "idle": (120, 120, 120)}
+                "search": (0, 110, 255), "lost": (120, 120, 120), "idle": (120, 120, 120),
+                "move": (250, 139, 167)}      # tricks (violet, like the dashboard)
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 WIN = "Robot simulator"
 
@@ -245,7 +248,7 @@ def draw_camera_view(img, people):
 
 def draw_panel(img, ui, bot, following, fwd, turn, distance):
     """Text in the top-left corner, the two wheel bars, and the help lines at the bottom."""
-    state, kind = bot.status()
+    state, kind = player.status(sim_time) or bot.status()
     who = "SMART - follows only you" if ui["who"] == "smart" else "SIMPLE - follows whoever it sees"
     lines = [
         (f"{ui['mode'].upper()} mode   {who}" + ("   [PAUSED]" if ui["paused"] else ""), TEXT),
@@ -268,13 +271,16 @@ def draw_panel(img, ui, bot, following, fwd, turn, distance):
 
     help1 = "drag = move you   right-drag = move stranger   n = stranger on/off   s = simple/smart"
     help2 = "a = you walk around   m = color/face   r = reset   space = pause   q = quit"
-    cv2.putText(img, help1, (12, img.shape[0] - 32), FONT, 0.45, (110, 110, 110), 1, cv2.LINE_AA)
-    cv2.putText(img, help2, (12, img.shape[0] - 12), FONT, 0.45, (110, 110, 110), 1, cv2.LINE_AA)
+    help3 = "tricks:  1 = spin   2 = dance   3 = nod   4 = shake"
+    cv2.putText(img, help1, (12, img.shape[0] - 52), FONT, 0.45, (110, 110, 110), 1, cv2.LINE_AA)
+    cv2.putText(img, help2, (12, img.shape[0] - 32), FONT, 0.45, (110, 110, 110), 1, cv2.LINE_AA)
+    cv2.putText(img, help3, (12, img.shape[0] - 12), FONT, 0.45, (150, 110, 130), 1, cv2.LINE_AA)
 
 
 # ---- Setup ------------------------------------------------------------------------
 robot = Robot()
 bot = Follower()                            # the same brain as step 4
+player = moves.Player()                     # the same tricks as the robot (pi/moves.py)
 you = [WORLD_W / 2 + 0.6, 2.2]              # you start ahead and a bit to the right (meters)
 stranger = [0.7, 1.4]                       # the other person, off to the left
 ui = {"mode": "color", "who": "smart", "stranger": False, "auto": False, "paused": False}
@@ -311,7 +317,11 @@ while True:
         camera_delay.append((see(robot, you[0], you[1], ui["mode"]), seen_stranger))    # 1. see
         seen_you, seen_stranger = camera_delay[0]    # the brain gets a slightly old picture, like the real one
         seen, following = pick(seen_you, seen_stranger, ui["who"])                    # 2. pick
-        fwd, turn = bot.update(seen, ui["mode"], now=sim_time)                         # 3. decide
+        trick = player.update(sim_time)                                                # 3. decide
+        if trick is not None:                       # a trick is playing: it owns the wheels
+            fwd, turn = trick
+        else:
+            fwd, turn = bot.update(seen, ui["mode"], now=sim_time)
         robot.drive(*wheels(fwd, turn))                                                # 4. drive
 
     # draw everything, back to front
@@ -355,5 +365,9 @@ while True:
         camera_delay.clear()
     if key == ord(' '):
         ui["paused"] = not ui["paused"]
+    for k, name in ((ord('1'), "spin"), (ord('2'), "dance"),
+                    (ord('3'), "nod"), (ord('4'), "shake")):
+        if key == k:                        # play a trick (same ones as the dashboard)
+            player.start(name, sim_time)
 
 cv2.destroyAllWindows()
