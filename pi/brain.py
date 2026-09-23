@@ -52,7 +52,7 @@ W, H = 480, 360
 #   Faces: keep RESUME at 30 or more (faces under ~26 px aren't detected)
 BANDS = {
     "color": (64, 83, 104),     # 20 cm target:     ~1.3 m / 1.0 m / 0.8 m
-    "face":  (33, 42, 54),      # face (~15 cm):    ~1.9 m / 1.5 m / 1.15 m
+    "face":  (45, 62, 83),      # face (~15 cm):    ~1.4 m / 1.0 m / 0.75 m
 }
 
 
@@ -77,8 +77,12 @@ TURN_MAX = 60       # Never turn harder than this %, however far off-center.
 
 
 # ---- Speeds (% of full motor speed) ------------------------------------------
-SPEED_FWD = 50      # driving toward the target
-SPEED_BACK = 40     # backing away when it's too close
+SPEED_FWD = 35      # driving toward the target. Kept deliberately low: the robot acts on
+                    # pictures up to 100 ms old at 10 fps, so a fast robot overshoots and
+                    # then hunts back and forth. Raise it once the room is bright and the
+                    # camera manages ~20 fps.
+SPEED_BACK = 30     # backing away when it's too close (it cannot see behind itself, so
+                    # this is always gentler than driving forward)
 
 
 # ---- Losing the target --------------------------------------------------------
@@ -99,9 +103,20 @@ LOST_GRACE = 5      # Detections flicker for a frame or two. Keep the last comma
 # It stops searching the moment the target is seen again. WHO counts as the
 # target is decided outside the brain: step 5 SIMPLE = anyone, SMART = only you.
 SEARCH = True           # False = just stop when the target is lost (no searching)
-SEARCH_TURN = 25        # Turn speed while searching, %.
+SEARCH_TURN = 20        # Turn speed while searching, %.
                         #   Misses you while sweeping past -> lower it (more time to spot you, less blur)
                         #   Takes too long to look around  -> raise it
+
+# The robot searches in little steps: turn a bit, STOP AND LOOK, turn a bit more.
+# Why not just spin slowly and evenly? Because the camera only manages 10-20 pictures
+# a second, and while the robot is turning every one of them is smeared and taken from
+# a different angle - so the face detector misses you even though you are right there.
+# Standing still for a moment gives it a few clean, sharp pictures to work with.
+#   Still sweeping past you   -> longer SEARCH_LOOK, or smaller SEARCH_STEP
+#   Too slow to look around   -> longer SEARCH_STEP, or shorter SEARCH_LOOK
+SEARCH_STEP = 0.30      # seconds of turning in each little step
+SEARCH_LOOK = 0.40      # seconds standing still afterwards, looking. Needs to be long enough
+                        # for 3-4 camera frames: at 10 fps that is 0.3-0.4 s.
 SEARCH_SWEEP = 1.0      # Seconds of the first sweep (must be more than 0). Every next sweep is
                         # that much longer. Bigger = wider first look before turning back.
                         # (In the simulator 1.0 s = ~90 degrees, so sweep 3 already looks behind.)
@@ -186,6 +201,11 @@ class Follower:
             t -= sweep * SEARCH_SWEEP
             sweep += 1
         side = self.last_side if sweep % 2 == 1 else -self.last_side   # odd sweeps: toward the last-seen side
+
+        # Inside the sweep, alternate: turn for SEARCH_STEP, then hold still for
+        # SEARCH_LOOK so the camera gets sharp pictures to search in.
+        if t % (SEARCH_STEP + SEARCH_LOOK) >= SEARCH_STEP:
+            return 0                            # the looking half of the step: wheels still
         return side * SEARCH_TURN
 
     def status(self):
