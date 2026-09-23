@@ -12,7 +12,7 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 | 5 | Face detection (YuNet) with two modes: **Simple** (biggest face) and **Smart** (locks onto you, recognizes you with SFace, ignores strangers) |
 | 6 | The robot program `pi/follow.py` + phone dashboard (`pi/web.py`): color / face / manual, Start-STOP, joystick, tap-your-face. Verified on the laptop and on the Pi, viewed from a phone. |
 | 6b | Dashboard redesigned in the SentryCore style (glass panels, the page tints itself with the robot's state, animated background). Plain CSS, no CDN, so it still looks right on the robot's own hotspot. |
-| 7 | Uno sketch written (`uno/motor_controller/`): compiles for the Uno (16% of its memory), wheel mixing verified by hand, built-in `t` bench test. **Not yet uploaded — the Uno is away.** |
+| 7 | **Uno done.** Sketch uploaded and bench-tested with the `t` routine: all six steps matched their labels, so `FWD_L`/`FWD_R` are correct and left/right are not swapped. Typed commands (`50 0`, `0 50`) drive the wheels. |
 | 11a | **Autostart works.** `deploy/install_service.sh` installed on the Pi; it boots, runs `follow.py` and serves the dashboard with no laptop. Options live in `/etc/default/followbot` (currently `--dry`). |
 | 11b | **Hotspot works, tested away from home.** The Pi broadcasts **FollowBot**; laptop and iPad join it and open `http://10.42.0.1:8000`, SSH at `myke@10.42.0.1`. Profile is `followbot-ap`, `autoconnect yes`, priority 100 — so it starts on every boot, anywhere. **Step 11 is done.** |
 | Tricks | `pi/moves.py`: spin, dance (single-single-double-double), nod, shake. Buttons on the dashboard, keys 1-4 in the simulator. Only play while running; STOP cancels. Timings checked against the simulator's motion model - spin is one full turn. |
@@ -31,9 +31,7 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 
 ## Hardware
 
-**Have:** Raspberry Pi 4, USB webcam, LAFVIN TB6612 motor shield, 2 motors with wheels **mounted on the chassis**, 4× 18650 cells in **two 2-slot holders** (7.4 V each — one runs the robot, one is a spare), 16 GB SD card, ESP32 (spare, unused).
-
-**Away right now:** the **Arduino Uno** — step 7 waits for it.
+**Have:** Raspberry Pi 4, USB webcam, **Arduino Uno** (back, sketch uploaded and tested), LAFVIN TB6612 motor shield, 2 motors with wheels **mounted on the chassis**, 4× 18650 cells in **two 2-slot holders** (7.4 V each — one runs the robot, one is a spare), 16 GB SD card, ESP32 (spare, unused).
 
 **Still needed:** 18650 charger, 5 V 3 A power bank (the 3000 mAh 2.1 A one is too weak for the robot), M3 standoffs, camera mount.
 
@@ -57,11 +55,7 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 
 ## Next
 
-**Blocked until the Uno is back:**
-
-1. **Step 7 — upload and bench test.** Arduino IDE → upload `uno/motor_controller/` → Serial Monitor at 115200, line ending *Newline*, **wheels off the ground** → type `t`. It runs each wheel on its own and announces it. A wheel turning the wrong way = flip `FWD_L` or `FWD_R` in the sketch. Then remove `--dry` from `/etc/default/followbot`.
-
-**Can be done any time (no Uno needed):**
+1. **Let the Pi drive the motors for real.** Uno into the Pi's USB, update the Pi's code, then take `--dry` out of `/etc/default/followbot` and restart the service. **Wheels off the ground for the first run.**
 
 2. **Try the tricks in the simulator** (`steps/04b_simulator.py`, keys 1–4). Written and tested, but the user hasn't watched them yet. If the dance feels too slow or twitchy, `BEAT` in `pi/moves.py` is the one number that sets the rhythm.
 3. **The all-in-one web page** — fold the HSV tuner and the top-view simulator into the dashboard. The user picked this as the next task. Pure code, no hardware.
