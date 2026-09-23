@@ -94,7 +94,7 @@ On Linux or the Pi, use `.venv/bin/python` instead of `.venv\Scripts\python`. In
 - [x] 8. Raspberry Pi setup
 - [ ] 9. Assemble the robot
 - [ ] 10. Calibrate and floor-test
-- [ ] 11. Autostart *(done)* + hotspot for the demo
+- [x] 11. Autostart + hotspot for the demo
 
 ## Documentation
 
