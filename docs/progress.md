@@ -1,6 +1,6 @@
 # Where the project stands
 
-Updated 23 September 2026. Short status of the build: what works, what's measured, what's left.
+Updated 24 September 2026. Short status of the build: what works, what's measured, what's left.
 
 ## Done
 
@@ -13,7 +13,9 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 | 6 | The robot program `pi/follow.py` + phone dashboard (`pi/web.py`): color / face / manual, Start-STOP, joystick, tap-your-face. Verified on the laptop and on the Pi, viewed from a phone. |
 | 6b | Dashboard redesigned in the SentryCore style (glass panels, the page tints itself with the robot's state, animated background). Plain CSS, no CDN, so it still looks right on the robot's own hotspot. |
 | 7 | **Uno done.** Sketch uploaded and bench-tested with the `t` routine: all six steps matched their labels, so `FWD_L`/`FWD_R` are correct and left/right are not swapped. Typed commands (`50 0`, `0 50`) drive the wheels. |
-| 11a | **Autostart works.** `deploy/install_service.sh` installed on the Pi; it boots, runs `follow.py` and serves the dashboard with no laptop. Options live in `/etc/default/followbot` (currently `--dry`). |
+| Driving | **The Pi drives the motors for real.** Uno on `/dev/ttyUSB0` (CH340 clone board), `--dry` removed from `/etc/default/followbot`. First drive was good. |
+| Tuning | After that first drive: both modes now hold at **0.65 m** (follow past 0.9 m, back off under 0.5 m), `SPEED_FWD` 50 -> 35, and searching changed from a continuous 92 deg/s spin to **turn 0.3 s, stand still 0.4 s and look** - half the frames are now taken while stationary, which is what the detector needs at 10 fps. |
+| 11a | **Autostart works.** `deploy/install_service.sh` installed on the Pi; it boots, runs `follow.py` and serves the dashboard with no laptop. Options live in `/etc/default/followbot` (now empty - it drives the motors for real). |
 | 11b | **Hotspot works, tested away from home.** The Pi broadcasts **FollowBot**; laptop and iPad join it and open `http://10.42.0.1:8000`, SSH at `myke@10.42.0.1`. Profile is `followbot-ap`, `autoconnect yes`, priority 100 — so it starts on every boot, anywhere. **Step 11 is done.** |
 | Tricks | `pi/moves.py`: spin, dance (single-single-double-double), nod, shake. Buttons on the dashboard, keys 1-4 in the simulator. Only play while running; STOP cancels. Timings checked against the simulator's motion model - spin is one full turn. |
 | Pi setup | Pi 4 with Raspberry Pi OS Lite 64-bit, code cloned from GitHub, `deploy/setup_pi.sh` run, `tools/pi_check.py` passing |
@@ -44,10 +46,10 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 - **The repository is private**, so the Pi needs a read-only token to `git pull`.
 - **Face models aren't on GitHub** (`.gitignore`) — `deploy/setup_pi.sh` downloads them, or see `pi/models/README.md`.
 - **Face fingerprints are never saved to disk**; they only exist while the program runs.
-- **The robot starts on boot now.** It holds the webcam and port 8000, so `sudo systemctl stop followbot` before running `pi/follow.py` by hand. Live log: `journalctl -u followbot -f`. Drop the `--dry` in `/etc/default/followbot` once the Uno is connected.
+- **The robot starts on boot now.** It holds the webcam and port 8000, so `sudo systemctl stop followbot` before running `pi/follow.py` by hand. Live log: `journalctl -u followbot -f`.
 - **iPad / iPhone can't show the video stream.** Safari refuses MJPEG, so the page falls back on its own to single pictures ~8×/s from `/frame.jpg` and shows `· STILLS` in the feed header. That is normal, not a fault. Chrome on a laptop gets the smooth stream.
 - **Dim rooms halve the frame rate** (10–12 fps instead of ~20), which is the main thing making a follower wobble. Light the demo room.
-- **The Pi boots into hotspot mode now**, so it has **no internet** and cannot `git pull`. To update its code: `sudo bash deploy/hotspot.sh boot-off` → `sudo reboot` → pull on home WiFi → `boot-on` → reboot.
+- **Hotspot vs home WiFi.** The Pi is back on home WiFi for now (`followbot.local`), with the hotspot profile saved but not auto-starting. Turn it back on before going out: `sudo nmcli connection modify followbot-ap connection.autoconnect yes` then reboot; `no` to come back. **On the hotspot it has no internet, so `git pull` only works on home WiFi** (or plug an Ethernet cable into the router, which keeps both).
 - **The Pi's clone still has the pre-rewrite history** (the Claude attribution was stripped and force-pushed). Its first update must be `git fetch origin && git reset --hard origin/main`, not `git pull`.
 - **Home WiFi is saved on the Pi as `HollyMax0306`** — no `_5G`. Useful if you ever need a phone hotspot to impersonate it so the Pi joins automatically.
 - **Locked out with no network?** Micro-HDMI (the port **nearest the USB-C socket**) to any TV, plus a USB keyboard, gives a console login. From there `sudo bash deploy/hotspot.sh on` works immediately — no reboot, no SSH to lose. Plug the screen in **before** powering up; a Pi ignores a display connected after boot.
@@ -55,11 +57,13 @@ Updated 23 September 2026. Short status of the build: what works, what's measure
 
 ## Next
 
-1. **Let the Pi drive the motors for real.** Uno into the Pi's USB, update the Pi's code, then take `--dry` out of `/etc/default/followbot` and restart the service. **Wheels off the ground for the first run.**
+1. **Test the new tuning on the floor** (waiting on the power bank - the Pi is on a wall charger right now, so it can't move freely). Two things to judge:
+   - does it settle nicely at 0.65 m, and does the turn-stop-look search find you?
+   - **does it ever whip past you when you step quickly to one side?** At `TURN_MAX = 60` the robot spins ~220 deg/s, which at 10 fps means the picture jumps ~22 deg between frames - the face blurs, detection fails, and `LOST_GRACE` keeps it turning blind for up to 5 frames. Proposed fix if it misbehaves: `KP = 45`, `TURN_MAX = 30` (~110 deg/s). **Claude offered this, user chose to test first.**
 
 2. **Try the tricks in the simulator** (`steps/04b_simulator.py`, keys 1–4). Written and tested, but the user hasn't watched them yet. If the dance feels too slow or twitchy, `BEAT` in `pi/moves.py` is the one number that sets the rhythm.
 3. **The all-in-one web page** — fold the HSV tuner and the top-view simulator into the dashboard. The user picked this as the next task. Pure code, no hardware.
-4. **Step 9 — assemble:** mount the camera ~20 cm up, tilted ~30°.
+4. **Step 9 — mount the camera. The height matters now.** At 20 cm up and tilted 30 deg, the frame covers only 0.28-1.08 m above the floor at 0.65 m - hip height, so a standing person's face is out of shot and face mode cannot work at the new close range. **About 48 cm up and tilted 45 deg** covers 0.74-2.12 m at 0.65 m, which works all the way in. (Sitting at a desk the low mount is fine, which is why close testing works today.)
 5. **Step 10 — calibrate** the distance bands and `KP` on the floor, then re-tune HSV in the demo room. A **distance bar** overlay (resume / stop / back-up bands with a marker) was offered for this step — add it then.
 
 ## Ideas parked for later
