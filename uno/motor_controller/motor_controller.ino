@@ -120,7 +120,7 @@ void wheelTest() {
   };
 
   for (auto &s : steps) {
-    Serial.print("  ");
+    Serial.print(F("  "));
     Serial.println(s.what);
     motor(DIR_L, PWM_L, FWD_L, s.l);           // straight to the wheels, skipping the mixer
     motor(DIR_R, PWM_R, FWD_R, s.r);
@@ -128,7 +128,7 @@ void wheelTest() {
     drive(0, 0);
     delay(400);
   }
-  Serial.println("  done - any wheel going the wrong way? flip FWD_L / FWD_R in the sketch");
+  Serial.println(F("  done - any wheel going the wrong way? flip FWD_L / FWD_R in the sketch"));
   lastCmd = millis();
 }
 
@@ -139,7 +139,10 @@ void setup() {
   pinMode(LED, OUTPUT);
   drive(0, 0);                                 // never move on power-up
   Serial.begin(115200);                        // must match BAUD in pi/follow.py
-  Serial.println("FollowBot motor controller ready. Send \"fwd turn\", or t to test the wheels.");
+  Serial.println(F("FollowBot motor controller ready. Type TWO NUMBERS, for example:"));
+  Serial.println(F("  50 0  forward     0 50  spin right     0 -50  spin left"));
+  Serial.println(F("  -40 0 backwards   50 30 curve right    0 0    stop"));
+  Serial.println(F("  t     test each wheel on its own"));
 }
 
 void loop() {
@@ -156,10 +159,13 @@ void loop() {
       } else if (len > 0 && sscanf(line, "%d %d", &fwd, &turn) == 2) {
         drive(fwd, turn);
         lastCmd = millis();
+      } else if (len > 0) {
+        // Not two numbers and not "t". Say so instead of silently doing nothing -
+        // otherwise a typo looks exactly like broken hardware. The wheels are left
+        // alone on purpose: a line we don't understand must never move the robot.
+        Serial.println(F("  ? I need two numbers, like \"50 0\"  (forward, turn), or t"));
       }
       len = 0;                                 // ready for the next line
-                                               // (anything else is ignored on purpose:
-                                               //  a half-received line must never move the robot)
     } else if (len < sizeof(line) - 1) {
       line[len++] = c;
     }
