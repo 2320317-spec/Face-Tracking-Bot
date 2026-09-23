@@ -49,6 +49,7 @@ Face_Tracking_Bot/
 ├── requirements-pi.txt        Python packages for the Raspberry Pi
 ├── .gitignore                 what Git never uploads (venv, face model, captures…)
 ├── .gitattributes             keeps line endings Linux-friendly for the Pi
+├── pyrightconfig.json         tells VS Code that steps/ imports from pi/
 │
 ├── docs/
 │   ├── following-robot-plan.md   the full build plan

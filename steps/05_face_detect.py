@@ -36,7 +36,7 @@ from vision import FaceTools, FaceLock, head_turn, LEARN_MAX, FOCAL, FACE_WIDTH_
 
 
 # ---- Settings ---------------------------------------------------------------------
-CAMERA = 0             # which camera: 0 = first, 1 = second
+CAMERA = 1             # which camera: 0 = first, 1 = second
 MODE = "smart"         # which mode to start in: "smart" or "simple"
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
