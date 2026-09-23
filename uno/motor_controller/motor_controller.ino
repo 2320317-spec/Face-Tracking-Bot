@@ -35,6 +35,12 @@
 const int DIR_L = 2, PWM_L = 5;      // channel A = LEFT motor  (shield socket A1)
 const int DIR_R = 4, PWM_R = 6;      // channel B = RIGHT motor (shield socket B1)
 
+// The little LED soldered onto the Uno itself, next to the USB socket. We light it
+// whenever the wheels are being driven, which is a handy check when the motors are
+// unplugged or quiet. Written as 13 rather than LED_BUILTIN because some board
+// settings in the Arduino IDE don't define that name, and then nothing compiles.
+const int LED = 13;
+
 // ---- Settings you may need to change ----------------------------------------
 
 // Which direction level drives each wheel FORWARD. The two motors face opposite
@@ -95,7 +101,7 @@ void drive(int fwd, int turn) {
   motor(DIR_R, PWM_R, FWD_R, r);
 
   stopped = (l == 0 && r == 0);
-  digitalWrite(LED_BUILTIN, !stopped);         // the Uno's own LED = "wheels are driving"
+  digitalWrite(LED, !stopped);                 // the Uno's own LED = "wheels are driving"
 }
 
 // =============================================================================
@@ -130,7 +136,7 @@ void wheelTest() {
 void setup() {
   pinMode(DIR_L, OUTPUT); pinMode(PWM_L, OUTPUT);
   pinMode(DIR_R, OUTPUT); pinMode(PWM_R, OUTPUT);
-  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(LED, OUTPUT);
   drive(0, 0);                                 // never move on power-up
   Serial.begin(115200);                        // must match BAUD in pi/follow.py
   Serial.println("FollowBot motor controller ready. Send \"fwd turn\", or t to test the wheels.");
