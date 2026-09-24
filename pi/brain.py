@@ -51,14 +51,18 @@ W, H = 480, 360
 #   Goes forward, back, forward...  -> move BACKUP further above STOP
 #   Faces: keep RESUME at 30 or more (faces under ~26 px aren't detected)
 BANDS = {
-    "color": (92, 128, 166),    # 20 cm target:     ~0.9 m / 0.65 m / 0.5 m
-    "face":  (69, 96, 125),     # face (~15 cm):    ~0.9 m / 0.65 m / 0.5 m
+    "color": (111, 152, 185),   # 20 cm target:     ~0.75 m / 0.55 m / 0.45 m
+    "face":  (83, 113, 139),    # face (~15 cm):    ~0.75 m / 0.55 m / 0.45 m
 }
 # NOTE for face mode: following this close only works if the camera can SEE your face
-# that close. Mounted 20 cm up and tilted 30 deg, at 0.65 m the camera is looking at
-# the region 0.28-1.07 m above the floor - your hip, not your head. See section 4.4 of
-# the build plan. To follow a standing person at 0.65 m the camera needs to be about
-# 45-50 cm up and tilted ~45 deg. Sitting at a desk, the current mount is fine.
+# from there. On a table, level with a seated person, it is fine - that is how these
+# numbers were set. On the floor at 20 cm tilted 30 deg, the frame at 0.55 m covers
+# only 0.27-1.0 m above the ground (your hip, not your head), so a STANDING person
+# would drop out of shot as the robot closed in. For that, the camera needs to be
+# about 45-50 cm up and tilted ~45 deg. See section 4.4 of the build plan.
+#
+# To re-measure these: run face mode, stand where you want it to stop, and read the
+# distance bar at the bottom of the live view - the marker's w is your STOP number.
 
 
 # ---- 2. STEERING: zones across the picture (pixels from the center) --------
@@ -73,20 +77,39 @@ DEAD_ZONE = 30      # Within +-30 px of the center counts as "centered": no turn
 ALIGN_ZONE = 120    # More than 120 px off-center: turn in place first, don't drive.
                     # (Centering beats distance - otherwise it drives past you.)
 
-KP = 60             # How hard to turn: the turn % when the target is at the very edge.
+KP = 35             # How hard to turn: the turn % when the target is at the very edge.
                     #   turn = KP x (how far off-center / half the picture width)
-                    #   e.g. target at x=300: 60 px off -> 60 x 60/240 = 15 % turn
+                    #   e.g. target at x=300: 60 px off -> 35 x 60/240 = 9 % turn
                     #   Overshoots and wobbles -> lower it. Turns too lazily -> raise it.
 
-TURN_MAX = 60       # Never turn harder than this %, however far off-center.
+TURN_MAX = 25       # Never turn harder than this %, however far off-center.
+
+
+# ---- Turning in short bursts -------------------------------------------------
+# The motors cannot rotate slowly. The Uno's MIN_PWM is 90, so turn=5 and turn=25
+# both come out near the same wheel speed - there is a floor below which the wheels
+# just buzz. The only way to turn SLOWLY is to turn in short bursts and pause
+# between them, which is also what gives the camera sharp pictures to work with.
+#
+#   burst   pause   burst   pause  ...
+#   0.15 s  0.25 s
+#
+# The effect: it creeps round in small steps instead of sweeping, and every pause
+# is 2-3 clean frames at 10 fps.
+#   Still blurry / overshoots you -> shorter PULSE_ON, or longer PULSE_OFF
+#   Too slow to keep you centred  -> longer PULSE_ON, or shorter PULSE_OFF
+#   Want the old smooth turning   -> PULSE_TURN = False
+PULSE_TURN = True
+PULSE_ON = 0.15     # seconds of actually turning
+PULSE_OFF = 0.25    # seconds of standing still and looking
 
 
 # ---- Speeds (% of full motor speed) ------------------------------------------
-SPEED_FWD = 35      # driving toward the target. Kept deliberately low: the robot acts on
+SPEED_FWD = 25      # driving toward the target. Kept deliberately low: the robot acts on
                     # pictures up to 100 ms old at 10 fps, so a fast robot overshoots and
                     # then hunts back and forth. Raise it once the room is bright and the
                     # camera manages ~20 fps.
-SPEED_BACK = 30     # backing away when it's too close (it cannot see behind itself, so
+SPEED_BACK = 22     # backing away when it's too close (it cannot see behind itself, so
                     # this is always gentler than driving forward)
 
 
@@ -108,7 +131,7 @@ LOST_GRACE = 5      # Detections flicker for a frame or two. Keep the last comma
 # It stops searching the moment the target is seen again. WHO counts as the
 # target is decided outside the brain: step 5 SIMPLE = anyone, SMART = only you.
 SEARCH = True           # False = just stop when the target is lost (no searching)
-SEARCH_TURN = 20        # Turn speed while searching, %.
+SEARCH_TURN = 18        # Turn speed while searching, %.
                         #   Misses you while sweeping past -> lower it (more time to spot you, less blur)
                         #   Takes too long to look around  -> raise it
 
@@ -119,8 +142,8 @@ SEARCH_TURN = 20        # Turn speed while searching, %.
 # Standing still for a moment gives it a few clean, sharp pictures to work with.
 #   Still sweeping past you   -> longer SEARCH_LOOK, or smaller SEARCH_STEP
 #   Too slow to look around   -> longer SEARCH_STEP, or shorter SEARCH_LOOK
-SEARCH_STEP = 0.30      # seconds of turning in each little step
-SEARCH_LOOK = 0.40      # seconds standing still afterwards, looking. Needs to be long enough
+SEARCH_STEP = 0.25      # seconds of turning in each little step
+SEARCH_LOOK = 0.50      # seconds standing still afterwards, looking. Needs to be long enough
                         # for 3-4 camera frames: at 10 fps that is 0.3-0.4 s.
 SEARCH_SWEEP = 1.0      # Seconds of the first sweep (must be more than 0). Every next sweep is
                         # that much longer. Bigger = wider first look before turning back.
@@ -191,6 +214,8 @@ class Follower:
             turn = round(KP * err / (W / 2))
             turn = max(-TURN_MAX, min(TURN_MAX, turn))
             self.last_side = 1 if err > 0 else -1   # remember the side (the search starts that way)
+            if PULSE_TURN and (now % (PULSE_ON + PULSE_OFF)) >= PULSE_ON:
+                turn = 0                            # the pause half of the burst: look, don't turn
         if abs(err) > ALIGN_ZONE:               # far off to the side: turn in place first
             fwd = 0
 

@@ -32,7 +32,7 @@ import cv2
 import gestures
 import moves
 import web
-from brain import W, H, DEAD_ZONE, ALIGN_ZONE, Follower, describe
+from brain import W, H, DEAD_ZONE, ALIGN_ZONE, BANDS, Follower, describe
 from vision import Camera, find_color, FaceTools, FaceLock, head_turn, LEARN_MAX, FOCAL, FACE_WIDTH_M
 
 
@@ -134,8 +134,38 @@ def draw_hand(frame, hand, gesture, obeying):
     put_label(frame, text, pts[:, 0].min(), pts[:, 1].min() - 8, GREEN if obeying else GRAY)
 
 
+def draw_distance_bar(frame, mode, w):
+    """A strip along the bottom showing the three distance bands and where you are now.
+
+    This is the calibration tool: stand where you want the robot to stop, read the w
+    under the marker, and put that number into BANDS in brain.py as the middle value.
+
+        far                                                     near
+        [-------- FOLLOW --------|-- hold --|-- BACK UP -------]
+                              resume      stop   backup
+    """
+    resume, stop, backup = BANDS[mode]
+    x0, x1, y = 12, W - 12, H - 20                    # the bar's box
+    span = backup * 1.6                               # the widest w the bar shows
+    at = lambda v: int(x0 + (x1 - x0) * min(v, span) / span)
+
+    # the three zones, left (far) to right (near)
+    for a, b, color in ((x0, at(resume), (0, 90, 0)),            # follow: drive forward
+                        (at(resume), at(stop), (0, 70, 70)),     # the hysteresis gap
+                        (at(stop), at(backup), (0, 90, 130)),    # hold: stand still
+                        (at(backup), x1, (0, 0, 120))):          # back up: too close
+        cv2.rectangle(frame, (a, y), (b, y + 8), color, -1)
+    for v in (resume, stop, backup):                             # the thresholds
+        cv2.line(frame, (at(v), y - 3), (at(v), y + 11), (200, 200, 200), 1)
+
+    if w:                                             # where you are right now
+        cv2.drawMarker(frame, (at(w), y + 4), WHITE, cv2.MARKER_TRIANGLE_DOWN, 11, 2)
+        metres = FOCAL * (FACE_WIDTH_M if mode == "face" else 0.20) / w
+        put_label(frame, f"w={w}  {metres:.2f} m", at(w) - 30, y - 6, WHITE, 0.4, 1)
+
+
 def live_view(frame, mode, who, box, faces, followed, lock, state_text, fwd, turn,
-              hand=None, gesture=None, obeying=None):
+              hand=None, gesture=None, obeying=None, target_w=None):
     """Draw what the robot sees and decides onto the frame, and return it as a JPEG picture."""
     # steering zones from brain.py: gray band = dead zone, dark lines = align zone
     cv2.rectangle(frame, (W // 2 - DEAD_ZONE, 0), (W // 2 + DEAD_ZONE, H), (90, 90, 90), 1)
@@ -173,7 +203,10 @@ def live_view(frame, mode, who, box, faces, followed, lock, state_text, fwd, tur
             cv2.rectangle(frame, (fx, fy), (fx + fw, fy + fh), YELLOW, 1)
             put_label(frame, "last seen", fx, fy - 8, YELLOW, 0.45, 1)
 
-    put_label(frame, f"{state_text}  |  {describe(fwd, turn)}", 8, H - 10, WHITE, 0.5, 1)
+    if mode in BANDS:                                 # not in manual or gesture mode
+        draw_distance_bar(frame, mode, target_w)
+
+    put_label(frame, f"{state_text}  |  {describe(fwd, turn)}", 8, H - 26, WHITE, 0.5, 1)
     return cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, STREAM_QUALITY])[1].tobytes()
 
 
@@ -308,7 +341,8 @@ def main():
             }
             if shared.wanted():                         # only draw the live view if someone is watching
                 shared.jpeg = live_view(frame, mode, who, box, faces, followed, lock,
-                                        state_text, fwd, turn, hand, gesture, obeying)
+                                        state_text, fwd, turn, hand, gesture, obeying,
+                                        target[1] if target else None)
     except KeyboardInterrupt:
         print("\nStopping.")
     finally:
