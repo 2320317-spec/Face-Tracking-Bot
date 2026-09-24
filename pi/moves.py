@@ -29,24 +29,51 @@ import time
 
 
 # ---- Settings ---------------------------------------------------------------
-SPIN_TURN = 60          # how hard it spins on the spot, % (TURN_MAX in brain.py is 60)
-SPIN_TIME = 1.6         # seconds for ONE full turn at SPIN_TURN. This came out of the
-                        # simulator's motion model (0.45 m/s wheels, 14 cm apart), so it is
-                        # a good starting point - but check it on the floor and adjust.
+# TEMPO is the one number that makes every trick quicker or slower. Everything
+# below is written at the original pace and divided by TEMPO, so this is the only
+# line you need to touch.
+#   1.00  the pace the tricks were first written at
+#   1.15  15% faster - where they are now
+# Careful going much past this: see the frame-rate note at the bottom of the
+# settings. The robot only decides ~12 times a second, and a step shorter than
+# one decision can be stretched or skipped entirely.
+TEMPO = 1.15
 
-BEAT = 0.30             # the dance's rhythm: seconds per "step". Smaller = faster dancing.
+# Spinning is the one trick where "faster" cannot mean "stop sooner" - it has to
+# come back round to face you. So TEMPO spins it HARDER and it finishes earlier,
+# and the two cancel out to the same one full turn.
+SPIN_TURN = round(60 * TEMPO)   # how hard it spins on the spot, %
+SPIN_TIME = 1.63 * 60 / SPIN_TURN
+                        # seconds for ONE full turn at SPIN_TURN. The 1.63 came out of
+                        # the simulator's motion model (0.45 m/s wheels, 14 cm apart),
+                        # so it is a good starting point - but check it on the floor.
+
+BEAT = 0.30 / TEMPO     # the dance's rhythm: seconds per "step". Smaller = faster dancing.
 BEAT_TURN = 55          # how hard it turns on each dance step, %
-GAP = 0.08              # tiny pause between steps, so they read as separate moves
+GAP = 0.08 / TEMPO      # tiny pause between steps, so they read as separate moves
 
 NOD_FWD = 45            # how hard it bumps forward and back when nodding, %
-NOD_TIME = 0.22         # seconds per bump - short, or it drives across the room
+NOD_TIME = 0.22 / TEMPO # seconds per bump - short, or it drives across the room
 
 SHAKE_TURN = 45         # how hard it flicks left/right when shaking, %
-SHAKE_TIME = 0.18       # seconds per flick - short, that's what makes it a shake
+SHAKE_TIME = 0.18 / TEMPO   # seconds per flick - short, that's what makes it a shake
 
-# Don't go below about 0.15 s for any step. The robot only decides ~12 times a
-# second in a dim room, so a 0.1 s step may last a single frame - or be skipped
-# altogether - and the move comes out ragged and lopsided.
+HOLD = 0.20 / TEMPO     # the pause each trick ends on
+
+# ---- The frame-rate ceiling -------------------------------------------------
+# A step only exists if the robot is awake to run it. In a dim room it decides
+# about 12 times a second, so one decision is 83 ms, and a step of 0.13 s is
+# 1.6 decisions - it may be sampled once or twice, which is what makes a rhythm
+# come out lopsided. At TEMPO 1.15 the shortest steps are:
+#
+#   GAP        (the pause between steps)  0.07 s   0.8 decisions   under one
+#   BEAT / 2   (the dance's double steps) 0.13 s   1.6 decisions   marginal
+#   SHAKE_TIME (one flick of the shake)   0.16 s   1.9 decisions   marginal
+#
+# GAP has been under one decision since the tricks were written, so the dance
+# steps have never been reliably separated - this does not make it worse. The
+# real fix for both is more frames (see docs/progress.md, "chase the frame rate"),
+# not a slower TEMPO. If the dance looks ragged on the floor, try TEMPO = 1.10.
 
 
 def _step(turn, seconds):
@@ -60,7 +87,7 @@ MOVES = {
     # One full turn on the spot, then stop.
     "spin": [
         (0, SPIN_TURN, SPIN_TIME),
-        (0, 0, 0.2),
+        (0, 0, HOLD),
     ],
 
     # "single single double double": one step left, one right,
@@ -70,15 +97,15 @@ MOVES = {
         _step(+BEAT_TURN, BEAT) +                       # single right
         _step(-BEAT_TURN, BEAT / 2) * 2 +               # double left  (two quick ones)
         _step(+BEAT_TURN, BEAT / 2) * 2 +               # double right
-        [(0, 0, 0.25)]                                  # hold the ending
+        [(0, 0, HOLD * 1.25)]                           # hold the ending
     ),
 
     # "Yes": short forward-and-back bumps.
     "nod": [
         (+NOD_FWD, 0, NOD_TIME), (-NOD_FWD, 0, NOD_TIME),
-        (0, 0, 0.1),
+        (0, 0, HOLD / 2),
         (+NOD_FWD, 0, NOD_TIME), (-NOD_FWD, 0, NOD_TIME),
-        (0, 0, 0.2),
+        (0, 0, HOLD),
     ],
 
     # "No": quick little flicks left and right, staying on the spot.
@@ -86,7 +113,7 @@ MOVES = {
         (0, -SHAKE_TURN, SHAKE_TIME), (0, +SHAKE_TURN, SHAKE_TIME),
         (0, -SHAKE_TURN, SHAKE_TIME), (0, +SHAKE_TURN, SHAKE_TIME),
         (0, -SHAKE_TURN, SHAKE_TIME), (0, +SHAKE_TURN, SHAKE_TIME),
-        (0, 0, 0.2),
+        (0, 0, HOLD),
     ],
 }
 
