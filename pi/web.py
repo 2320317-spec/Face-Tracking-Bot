@@ -106,7 +106,7 @@ def create_app(shared):
 
     @app.post("/api/mode")
     def mode():
-        if body().get("mode") in ("color", "face", "manual"):
+        if body().get("mode") in ("color", "face", "manual", "gesture"):
             shared.mode = body()["mode"]
         return status()
 

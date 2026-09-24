@@ -29,6 +29,7 @@ import time
 
 import cv2
 
+import gestures
 import moves
 import web
 from brain import W, H, DEAD_ZONE, ALIGN_ZONE, Follower, describe
@@ -112,12 +113,37 @@ def draw_face(frame, face, color, text, landmarks):
             cv2.arrowedLine(frame, nose, (int(nose[0] + offset * w * 0.8), nose[1]), ORANGE, 2, tipLength=0.4)
 
 
-def live_view(frame, mode, who, box, faces, followed, lock, state_text, fwd, turn):
+# The 21 points joined up, so the live view shows a hand rather than confetti.
+HAND_LINKS = [(0, 1), (1, 2), (2, 3), (3, 4),            # thumb
+               (0, 5), (5, 6), (6, 7), (7, 8),            # index
+               (0, 9), (9, 10), (10, 11), (11, 12),       # middle
+               (0, 13), (13, 14), (14, 15), (15, 16),     # ring
+               (0, 17), (17, 18), (18, 19), (19, 20),     # pinky
+               (5, 9), (9, 13), (13, 17)]                 # across the knuckles
+
+
+def draw_hand(frame, hand, gesture, obeying):
+    """The skeleton, with the index finger picked out because it does the pointing."""
+    pts = hand["points"].astype(int)
+    for a, b in HAND_LINKS:
+        cv2.line(frame, tuple(pts[a]), tuple(pts[b]), GREEN if obeying else GRAY, 2)
+    for i, p in enumerate(pts):
+        cv2.circle(frame, tuple(p), 3, YELLOW if i in (4, 8, 12, 16, 20) else CYAN, -1)
+    cv2.arrowedLine(frame, tuple(pts[5]), tuple(pts[8]), ORANGE, 2, tipLength=0.3)
+    text = (obeying or gesture or "?").replace("-", " ")
+    put_label(frame, text, pts[:, 0].min(), pts[:, 1].min() - 8, GREEN if obeying else GRAY)
+
+
+def live_view(frame, mode, who, box, faces, followed, lock, state_text, fwd, turn,
+              hand=None, gesture=None, obeying=None):
     """Draw what the robot sees and decides onto the frame, and return it as a JPEG picture."""
     # steering zones from brain.py: gray band = dead zone, dark lines = align zone
     cv2.rectangle(frame, (W // 2 - DEAD_ZONE, 0), (W // 2 + DEAD_ZONE, H), (90, 90, 90), 1)
     for x in (W // 2 - ALIGN_ZONE, W // 2 + ALIGN_ZONE):
         cv2.line(frame, (x, 0), (x, H), (60, 60, 60), 1)
+
+    if mode == "gesture" and hand is not None:
+        draw_hand(frame, hand, gesture, obeying)
 
     if mode == "color" and box is not None:
         x, y, w, h = box
@@ -158,7 +184,8 @@ def main():
     ap.add_argument("--port", help="the Uno's serial port (default: find it; on Windows e.g. COM5)")
     ap.add_argument("--camera", type=int, default=0, help="camera number (default 0)")
     ap.add_argument("--web-port", type=int, default=8000, help="dashboard port (default 8000)")
-    ap.add_argument("--mode", choices=["color", "face", "manual"], default="color", help="mode at start")
+    ap.add_argument("--mode", choices=["color", "face", "manual", "gesture"], default="color",
+                    help="mode at start")
     args = ap.parse_args()
 
     cam = Camera(args.camera)
@@ -167,6 +194,8 @@ def main():
     lock = FaceLock(tools)                  # Smart mode's memory: where you are, and who you are
     bot = Follower()                        # the brain
     player = moves.Player()                 # the tricks: spin, dance, nod, shake
+    hands = gestures.HandTools()            # gesture mode: the two hand models
+    reader = gestures.GestureReader()       # ...and the hold / let-go logic
     shared = web.Shared(args.mode)          # shared with the web page
     web.start(shared, args.web_port)
     button = setup_button(shared)
@@ -189,6 +218,7 @@ def main():
                 bot.reset()
                 lock.reset()
                 player.stop()                           # a trick doesn't survive a mode change
+                reader.reset()                          # nor does a held gesture
             if shared.forget:                           # "Forget me"
                 lock.reset()
                 shared.forget = False
@@ -197,7 +227,14 @@ def main():
 
             # ---- 2. FIND the target: (center x, width w), or None ----
             box, faces, followed, target = None, [], None, None
-            if mode == "color":
+            hand, gesture, obeying = None, None, None
+            if mode == "gesture":                       # only hands this frame - nothing else
+                found = hands.find(frame)
+                if found:
+                    hand = found[0]                     # the nearest hand wins
+                    gesture = gestures.name_gesture(hand["points"])[0]
+                obeying = reader.update(gesture)        # what to obey right now (or None)
+            elif mode == "color":
                 box, _ = find_color(frame)
                 if box is not None:
                     target = (box[0] + box[2] // 2, box[2])
@@ -229,6 +266,18 @@ def main():
                 if trick is not None:                   # a trick owns the wheels while it plays
                     fwd, turn = trick
                     state_text, kind = player.status()
+                elif mode == "gesture":                 # your hand drives
+                    command = gestures.COMMANDS.get(obeying)
+                    if command == gestures.STOP:        # open palm = the STOP button
+                        shared.running = False
+                        fwd, turn = 0, 0
+                        state_text, kind = "STOPPED by your hand", "idle"
+                    elif command is None:               # no hand, or a shape with no meaning
+                        fwd, turn = 0, 0
+                        state_text, kind = "SHOW ME A HAND", "lost"
+                    else:
+                        fwd, turn = command
+                        state_text, kind = obeying.upper().replace("-", " "), "gesture"
                 elif mode == "manual":                  # the joystick drives
                     fresh = time.time() - shared.joystick_t < MANUAL_TIMEOUT
                     jf, jt = shared.joystick if fresh else (0, 0)
@@ -254,10 +303,12 @@ def main():
                 "knows_you": lock.knows_you(), "prints": len(lock.prints), "learn_max": LEARN_MAX,
                 "recognizer": tools.recognizer is not None, "uno": uno is not None,
                 "move": player.name,                    # which trick is playing, or nothing
+                "gesture": obeying, "seen": gesture,    # obeyed / seen this frame
+                "hold": round(reader.progress(), 2),    # how far a new gesture has proved itself
             }
             if shared.wanted():                         # only draw the live view if someone is watching
                 shared.jpeg = live_view(frame, mode, who, box, faces, followed, lock,
-                                        state_text, fwd, turn)
+                                        state_text, fwd, turn, hand, gesture, obeying)
     except KeyboardInterrupt:
         print("\nStopping.")
     finally:

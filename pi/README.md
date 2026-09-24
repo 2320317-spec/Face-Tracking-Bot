@@ -8,6 +8,7 @@ Everything the robot runs. It also runs on the PC with `--dry` (no Uno needed), 
 | `brain.py` | The decisions: follow / hold / back up, steering, searching. **Driving settings live here.** |
 | `vision.py` | The eyes: camera, color detection, face detection + recognition, the SMART lock. **Color and face settings live here.** |
 | `moves.py` | The tricks: spin, dance, nod, shake. **Their timings live here**, and the simulator plays the same ones. |
+| `gestures.py` | Gesture mode: finds your hand, reads its 21 points, names the signal. **Hand settings and speeds live here.** |
 | `web.py` | The phone dashboard's web server. |
 | `templates/index.html` | The phone page: live view, mode buttons, Engage / STOP, joystick. One self-contained file — no internet needed, so it still looks right on the robot's own hotspot. |
 | `models/` | The two face models — downloaded, not on GitHub ([how to get them](models/README.md)). |
@@ -55,6 +56,7 @@ The robot always starts **STOPPED** — nothing moves until you press **Engage**
 | **Numbers** | fps · command sent to the Uno · target width · faces seen. |
 | **Control deck** | Mode (Color / Face / Manual), then Simple / Smart and Forget me, then the joystick in Manual. |
 | **Engage / STOP** | In the panel at the top, and again in a bar that slides up from the bottom once you scroll past it, so STOP is always a thumb away. |
+| **Hand** | Drive it by showing signals to the camera: point up / left / right, two fingers to back up, fist to stay put, open palm to STOP. Nothing else is processed in this mode, so the hand models get the whole frame budget. |
 | **Tricks** | Spin, Dance, Nod, Shake. A trick takes over the wheels, then hands them back to whatever mode was running. It only plays while the robot is **running**, and STOP cancels it. Timings are in `moves.py`; try them in the simulator first (keys 1–4). |
 | **Keyboard** | On a laptop: **W A S D** or the arrow keys drive in Manual, **space** = STOP. |
 | **✦** | Turns the background rain and the dragon off. Both are drawn by your phone, not the Pi. |

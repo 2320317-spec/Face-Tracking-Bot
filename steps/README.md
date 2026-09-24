@@ -68,6 +68,15 @@ Try each step yourself first. The build plan has a finished reference for each p
 - **Done when:** the box sits on your face and stays on it as you step back to about 2 m, with `w` shrinking.
 - **Plan:** 4.4 (how big faces are in pixels), 5.6.
 
+### Step 7 — `07_hand_gesture.py`: driving it with your hand
+
+- **Goal:** see your hand's 21 points live, the gesture it reads, and the command it would send. Nothing moves — this is for getting the signals right before the robot obeys them.
+- **The signals:** one finger up / left / right = forward, turn left, turn right · two fingers = back up · fist = stay put · open palm = STOP.
+- **Two models**, both from the OpenCV Zoo like YuNet: one finds the palm, one puts 21 points on it. The gesture is then plain arithmetic — a finger counts as extended when its tip is further from the wrist than its middle joint.
+- **Keys:** `f` flips left/right if it feels backwards · `q` quit.
+- **Not detected?** Get closer — your hand needs to be about 45 px wide in the picture, roughly an arm's length.
+- **Files:** everything lives in `pi/gestures.py`, so the robot and this script behave identically.
+
 ### Step 6 — `pi/follow.py` + `pi/web.py`: the real program
 
 - **Goal:** combine steps 1–5 into one program with three modes (color / face with Simple + Smart / manual), a `--dry` flag (runs without the Uno), and the phone dashboard (Flask): live view, mode buttons, Start / STOP, joystick, tap-your-face.

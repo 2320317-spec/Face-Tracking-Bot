@@ -55,9 +55,23 @@ CROP_SCALE = 2.6        # the palm box only covers the palm; the fingers need ~2
 CROP_SHIFT = -0.5       # and the crop is shifted up (toward the fingers) by half a box
 
 # How long you must hold a gesture before the robot acts on it. Without this, a hand
-# passing through a "fist" shape on its way to a wave would stop the robot.
-HOLD_FRAMES = 5         # frames in a row showing the same gesture
-COOLDOWN = 1.5          # seconds before the same gesture can fire again
+# passing through a "fist" shape on its way to a wave would drive the robot.
+HOLD_FRAMES = 3         # frames in a row showing the same gesture before it counts
+FORGIVE_FRAMES = 3      # keep obeying for this many frames if the hand flickers out of
+                        # view, so one missed detection doesn't stutter the wheels
+                        # (the same idea as LOST_GRACE in brain.py)
+
+# ---- Driving by hand --------------------------------------------------------------
+# These are the speeds used while a gesture is held, in the same -100..100 the brain
+# and the Uno use. Kept gentle: you are steering by waving, not with a joystick.
+GESTURE_FWD = 35        # pointing up
+GESTURE_TURN = 30       # pointing left or right (turns on the spot)
+GESTURE_BACK = 30       # two fingers = backwards
+
+POINT_FLIP = False      # Which way is "left"?
+                        # False: the way your finger points ON SCREEN is the way it turns.
+                        #        Point at the left of the picture -> it turns left.
+                        # True:  the opposite, if that feels backwards to you in practice.
 
 
 # =============================================================================
@@ -96,14 +110,25 @@ class HandTools:
 
     def __init__(self):
         self.palm = self.hand = None
+        self.loaded = False
+
+    def load(self):
+        """Read the two model files. Done on the first gesture frame rather than at
+        startup, so a robot that never leaves face mode never pays for them."""
+        if self.loaded:
+            return self.palm is not None
+        self.loaded = True
         if os.path.exists(PALM_MODEL) and os.path.exists(HAND_MODEL):
             self.palm = cv2.dnn.readNet(PALM_MODEL)
             self.hand = cv2.dnn.readNet(HAND_MODEL)
+        else:
+            print("Hand models missing from pi/models - gesture mode will see nothing.")
+        return self.palm is not None
 
     # ---- step 1: where are the hands? ------------------------------------------
     def palms(self, frame):
         """Returns [(box, score)] - box is (x, y, w, h) in the frame's own pixels."""
-        if self.palm is None:
+        if not self.load():
             return []
         h, w = frame.shape[:2]
 
@@ -225,8 +250,35 @@ def fingers_up(points):
     return out
 
 
+def point_direction(points):
+    """Which way the index finger is pointing: "left", "right", "up" or "down".
+
+    It is the line from the index knuckle (point 5) to its tip (point 8). Screen y
+    grows downwards, so it is flipped to get normal "up is up" angles."""
+    dx = points[8][0] - points[5][0]
+    dy = -(points[8][1] - points[5][1])
+    angle = math.degrees(math.atan2(dy, dx))                # 0 = right, 90 = up, 180 = left
+
+    # "Up" gets a narrow 60-degree wedge and sideways gets a wide 120-degree one,
+    # because people point sideways with the finger tilted up. A wide "up" would
+    # swallow half the sideways pointing and the robot would drive at you instead
+    # of turning.
+    if 60 <= angle < 120:
+        return "up"
+    if -120 <= angle < -60:
+        return "down"
+    side = "right" if -60 <= angle < 60 else "left"
+    if POINT_FLIP:
+        side = "left" if side == "right" else "right"
+    return side
+
+
 def name_gesture(points):
-    """Returns ("fist" | "point" | "peace" | "three" | "palm" | "thumb" | None, fingers)."""
+    """The gesture in this hand, as a name. Returns (name, which fingers are up).
+
+    Names:  point-left / point-right / point-up / point-down   one finger, where it aims
+            peace    two fingers          fist    none          palm    all five
+            three    three fingers        thumb   thumb only    None    no name for it"""
     up = fingers_up(points)
     n = sum(up.values())
     if n == 0:
@@ -234,7 +286,7 @@ def name_gesture(points):
     if n == 5:
         return "palm", up
     if up["index"] and not up["middle"] and not up["ring"] and not up["pinky"]:
-        return "point", up                                  # thumb may be out or in
+        return "point-" + point_direction(points), up       # the thumb may be out or in
     if up["index"] and up["middle"] and not up["ring"] and not up["pinky"]:
         return "peace", up
     if up["index"] and up["middle"] and up["ring"] and not up["pinky"]:
@@ -244,34 +296,74 @@ def name_gesture(points):
     return None, up                                         # a shape we don't have a name for
 
 
-class GestureReader:
-    """Makes you HOLD a gesture before it counts, and refuses to repeat itself.
+# =============================================================================
+# What each gesture tells the wheels to do, as (fwd, turn) - the same two numbers
+# everything else in this robot speaks in.
+#
+#   STOP is a special case: it doesn't mean "drive 0", it means "disengage", the
+#   same as pressing STOP on the dashboard. You then have to press Engage to wake
+#   it up again - which is exactly what you want from a raised palm.
+# =============================================================================
+STOP = "stop"                                               # the marker for "disengage"
 
-    Without this, every hand that happens to pass through a fist shape on its way
-    somewhere else would fire a command."""
+COMMANDS = {
+    "point-up":    (GESTURE_FWD, 0),        # one finger up        -> forward
+    "point-left":  (0, -GESTURE_TURN),      # one finger left      -> turn left
+    "point-right": (0, GESTURE_TURN),       # one finger right     -> turn right
+    "peace":       (-GESTURE_BACK, 0),      # two fingers          -> backwards
+    "fist":        (0, 0),                  # fist                 -> stay put, still watching
+    "palm":        STOP,                    # open palm            -> STOP, like the button
+}
+
+
+class GestureReader:
+    """Turns a stream of per-frame guesses into one steady answer.
+
+    The robot obeys a gesture for as long as you HOLD it, like leaning on a joystick.
+    Two guards, both needed:
+
+      HOLD_FRAMES      a new gesture has to appear a few frames in a row before it
+                       counts, so a hand passing through a fist shape on its way to
+                       a wave doesn't drive the robot.
+      FORGIVE_FRAMES   once a gesture is accepted, one or two missed detections don't
+                       drop it - otherwise the wheels stutter every time you move.
+
+    Show nothing (or take your hand away) and it lets go, which is the deadman: the
+    robot stops when you stop telling it what to do."""
 
     def __init__(self):
         self.reset()
 
     def reset(self):
-        self.current = None         # the gesture being held right now
-        self.held = 0               # how many frames in a row
-        self.last_fired = {}        # gesture -> when it last fired (seconds)
+        self.held = None            # the gesture we are currently obeying
+        self.candidate = None       # a new gesture trying to take over
+        self.count = 0              # frames the candidate has been seen
+        self.missing = 0            # frames since we last saw the held gesture
 
-    def update(self, gesture, now):
-        """Call once per frame with the gesture seen (or None).
-        Returns the gesture name the moment it has been held long enough, else None."""
-        if gesture != self.current:
-            self.current, self.held = gesture, 0
-        self.held += 1
+    def update(self, gesture):
+        """Call once per frame with the gesture seen this frame (or None).
+        Returns the gesture to obey right now, or None."""
+        if gesture is not None and gesture == self.held:
+            self.missing = 0                                # still holding it: nothing to do
+            self.candidate, self.count = None, 0
+            return self.held
 
-        if gesture is None or self.held != HOLD_FRAMES:      # "!=" so it fires ONCE
-            return None
-        if now - self.last_fired.get(gesture, -999) < COOLDOWN:
-            return None
-        self.last_fired[gesture] = now
-        return gesture
+        if gesture is None:                                 # hand gone or unrecognised shape
+            self.candidate, self.count = None, 0
+            self.missing += 1
+            if self.missing > FORGIVE_FRAMES:
+                self.held = None                            # let go
+            return self.held
+
+        # A different gesture: it must prove itself before it takes over.
+        if gesture != self.candidate:
+            self.candidate, self.count = gesture, 0
+        self.count += 1
+        if self.count >= HOLD_FRAMES:
+            self.held, self.missing = gesture, 0
+            self.candidate, self.count = None, 0
+        return self.held
 
     def progress(self):
-        """0.0 to 1.0 - how far through the hold we are, for the dashboard."""
-        return min(1.0, self.held / HOLD_FRAMES) if self.current else 0.0
+        """0.0 to 1.0 - how far a new gesture is through proving itself, for the page."""
+        return min(1.0, self.count / HOLD_FRAMES) if self.candidate else 0.0

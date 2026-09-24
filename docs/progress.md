@@ -18,6 +18,7 @@ Updated 24 September 2026. Short status of the build: what works, what's measure
 | 11a | **Autostart works.** `deploy/install_service.sh` installed on the Pi; it boots, runs `follow.py` and serves the dashboard with no laptop. Options live in `/etc/default/followbot` (now empty - it drives the motors for real). |
 | 11b | **Hotspot works, tested away from home.** The Pi broadcasts **FollowBot**; laptop and iPad join it and open `http://10.42.0.1:8000`, SSH at `myke@10.42.0.1`. Profile is `followbot-ap`, `autoconnect yes`, priority 100 — so it starts on every boot, anywhere. **Step 11 is done.** |
 | Tricks | `pi/moves.py`: spin, dance (single-single-double-double), nod, shake. Buttons on the dashboard, keys 1-4 in the simulator. Only play while running; STOP cancels. Timings checked against the simulator's motion model - spin is one full turn. |
+| Gestures | **Hand signals work.** `pi/gestures.py` ports the MediaPipe palm + 21-landmark models from the OpenCV Zoo (no new library). Its own dashboard mode, so nothing else competes for frames: point up/left/right to drive, two fingers to reverse, fist to stay put, open palm to STOP. Take your hand away and it stops. ~15 fps on the laptop. |
 | Pi setup | Pi 4 with Raspberry Pi OS Lite 64-bit, code cloned from GitHub, `deploy/setup_pi.sh` run, `tools/pi_check.py` passing |
 
 ## Measured (not estimated)
@@ -57,7 +58,8 @@ Updated 24 September 2026. Short status of the build: what works, what's measure
 
 ## Next
 
-1. **Test the new tuning on the floor** (waiting on the power bank - the Pi is on a wall charger right now, so it can't move freely). Two things to judge:
+1. **Try gesture mode**, first on the laptop (`.venv/Scripts/python steps/07_hand_gesture.py`, no robot needed), then on the Pi. Check left/right feel the right way round — if not, set `POINT_FLIP = True` in `pi/gestures.py`. Speeds are `GESTURE_FWD` / `GESTURE_TURN` / `GESTURE_BACK` in the same file.
+2. **Test the new tuning on the floor** (waiting on the power bank - the Pi is on a wall charger right now, so it can't move freely). Two things to judge:
    - does it settle nicely at 0.65 m, and does the turn-stop-look search find you?
    - **does it ever whip past you when you step quickly to one side?** At `TURN_MAX = 60` the robot spins ~220 deg/s, which at 10 fps means the picture jumps ~22 deg between frames - the face blurs, detection fails, and `LOST_GRACE` keeps it turning blind for up to 5 frames. Proposed fix if it misbehaves: `KP = 45`, `TURN_MAX = 30` (~110 deg/s). **Claude offered this, user chose to test first.**
 
@@ -69,7 +71,7 @@ Updated 24 September 2026. Short status of the build: what works, what's measure
 ## Ideas parked for later
 
 - **One local web page for everything:** the dashboard plus HSV tuning and the simulator as a control panel.
-- **[Hand gestures](hand-gestures.md)** — open palm to stop, fist to hold, pointing to go. Two-stage palm + 21-landmark models from OpenCV Zoo (no new library), gesture from the geometry of those points. Would only obey the person Smart mode is locked onto. Nothing built.
+- **Gestures: only obey the person Smart mode knows** — today gesture mode obeys the nearest hand, whoever it belongs to. Verifying identity needs face detection running too, which is what gesture mode deliberately avoids. See [the write-up](hand-gestures.md).
 - **[LLM companion](llm-companion.md)** — a local model on the laptop that takes spoken/typed commands, explains the robot's own decisions, and writes new dances. Written up in full; the user liked all six features. Nothing built.
 - **Follow your body** once your face is found, so it can follow you when you turn away.
 - **Brighten dark faces** (CLAHE) if the demo room's ceiling lights make faces hard to detect.
