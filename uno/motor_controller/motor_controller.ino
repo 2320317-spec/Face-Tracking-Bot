@@ -50,13 +50,37 @@ const bool FWD_L = HIGH, FWD_R = LOW;
 
 // The slowest PWM that actually moves the robot. Below this the motors just buzz
 // and get warm. Too low -> the robot stalls on carpet; too high -> it can't creep.
-// Find it on the floor in step 10: send "20 0" and raise MIN_PWM until it crawls.
-const int MIN_PWM = 90;              // 0-255
+// Find it on the floor: send "20 0" and raise MIN_PWM until it just crawls.
+// This is also why a small number from the Pi still moves the robot: "fwd 25" does
+// not mean a quarter power, it means MIN_PWM plus a quarter of the way to MAX_PWM.
+const int MIN_PWM = 70;              // 0-255
 
 // The fastest PWM allowed. NOT 255 on purpose: the TB6612 passes almost the whole
 // battery voltage through, so at 255 the motors would see ~7.4-8.4 V while these
-// TT motors are rated 3-6 V. 200/255 keeps the average around 6 V.
-const int MAX_PWM = 200;             // 0-255
+// TT motors are rated 3-6 V. Lowered from 200 to 140 to stop the robot lurching:
+// 140/255 of 7.4 V is about 4 V, which is a walking pace rather than a jump.
+//   Too weak to move on carpet -> raise both numbers
+//   Still too sudden           -> lower MAX_PWM, or slow the ramp below
+const int MAX_PWM = 140;             // 0-255
+
+// ---- Ramping: how fast the wheels are allowed to CHANGE speed ----------------
+// Without this, a new command hits the motors instantly and the robot jumps -
+// it "bursts out" on every move. The ramp spreads the change over a moment, so
+// the robot leans into it instead. Measured in command units (-100..100) per second.
+//
+// Speeding up and slowing down are deliberately NOT the same:
+//
+//   RAMP_UP    gentle. This is the one that stops the lurch - a standing start to
+//              full speed takes about half a second.
+//   RAMP_DOWN  quick. Braking never feels like a lurch, and there are two good
+//              reasons to be fast about it: the robot should stop promptly when
+//              told, and the Pi turns in short bursts with pauses for the camera
+//              to get a sharp picture. A slow wind-down would eat those pauses.
+//
+//   Still jumpy when starting -> lower RAMP_UP (120, 90)
+//   Sluggish, or the little turn bursts don't register -> raise RAMP_UP (250)
+const float RAMP_UP = 180.0;
+const float RAMP_DOWN = 700.0;
 
 // Failsafe. No command for this long -> stop. Must be longer than the time between
 // commands from the Pi (it sends one per camera frame, ~20 per second = every 50 ms).
@@ -67,6 +91,10 @@ char line[24];                       // the command being typed/received, one ch
 byte len = 0;                        // how much of it we have so far
 unsigned long lastCmd = 0;           // when the last good command arrived (millis)
 bool stopped = true;                 // are the motors currently stopped?
+
+int targetL = 0, targetR = 0;        // the speed each wheel is being asked for (-100..100)
+float curL = 0, curR = 0;            // the speed each wheel is actually at, right now
+unsigned long lastRamp = 0;          // when the ramp last moved them
 
 // =============================================================================
 // One wheel. v is -100..100. Any non-zero v gets at least MIN_PWM, so a small
@@ -97,11 +125,51 @@ void drive(int fwd, int turn) {
     r = r * 100 / m;
   }
 
-  motor(DIR_L, PWM_L, FWD_L, l);
-  motor(DIR_R, PWM_R, FWD_R, r);
+  // Only ASK for these speeds. ramp() below walks the wheels toward them.
+  targetL = l;
+  targetR = r;
+}
 
-  stopped = (l == 0 && r == 0);
+
+// One wheel's speed, moved a little closer to what was asked for. Speeding up is
+// limited to RAMP_UP, slowing down to the much quicker RAMP_DOWN.
+float eased(float now_v, int want, float dt) {
+  bool slowing = abs(want) < abs(now_v) || (want < 0) != (now_v < 0);
+  float step = (slowing ? RAMP_DOWN : RAMP_UP) * dt;
+  return now_v + constrain(want - now_v, -step, step);
+}
+
+
+// =============================================================================
+// Called constantly. Moves each wheel a little closer to the speed it was asked
+// for, never faster than the ramps allow - that is what stops the robot lurching.
+// =============================================================================
+void ramp() {
+  unsigned long now = millis();
+  float dt = (now - lastRamp) / 1000.0;
+  lastRamp = now;
+  if (dt <= 0 || dt > 0.5) dt = 0.02;          // first time through, or a long gap
+
+  curL = eased(curL, targetL, dt);
+  curR = eased(curR, targetR, dt);
+
+  motor(DIR_L, PWM_L, FWD_L, (int)curL);
+  motor(DIR_R, PWM_R, FWD_R, (int)curR);
+
+  stopped = ((int)curL == 0 && (int)curR == 0);
   digitalWrite(LED, !stopped);                 // the Uno's own LED = "wheels are driving"
+}
+
+
+// Stop NOW, no ramp. Used by the failsafe - if the Pi has gone quiet, the robot
+// should not keep coasting while a ramp politely winds it down.
+void stopNow() {
+  targetL = targetR = 0;
+  curL = curR = 0;
+  motor(DIR_L, PWM_L, FWD_L, 0);
+  motor(DIR_R, PWM_R, FWD_R, 0);
+  stopped = true;
+  digitalWrite(LED, LOW);
 }
 
 // =============================================================================
@@ -129,6 +197,7 @@ void wheelTest() {
     delay(400);
   }
   Serial.println(F("  done - any wheel going the wrong way? flip FWD_L / FWD_R in the sketch"));
+  stopNow();                                   // the test drove the motors directly
   lastCmd = millis();
 }
 
@@ -171,6 +240,10 @@ void loop() {
     }
   }
 
-  // Failsafe: nothing heard from the Pi for TIMEOUT_MS -> stop.
-  if (!stopped && millis() - lastCmd > TIMEOUT_MS) drive(0, 0);
+  // Failsafe: nothing heard from the Pi for TIMEOUT_MS -> stop, immediately.
+  if (!stopped && millis() - lastCmd > TIMEOUT_MS) {
+    stopNow();
+  } else {
+    ramp();                                    // otherwise ease toward the asked-for speed
+  }
 }

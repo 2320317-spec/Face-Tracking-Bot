@@ -5,6 +5,8 @@
 | `hsv_tune.py` | Sliders to find the HSV range of your target color under the current lighting (roadmap step 3). Run it again in the demo room — lighting changes everything. |
 | `pi_check.py` | Is this computer ready? Checks versions, face models, webcam, serial ports and (on the Pi) temperature and power — and **measures how fast** color and face detection really run. No windows, so it works over SSH. `--camera 1` for another camera, `--no-camera` to skip it. |
 
+| `camera_speed.py` | **What fps does the webcam really deliver?** Tries every size it offers and counts the frames that actually arrive. A webcam will claim 30 fps and send 12. Run it on the Pi with the robot stopped. |
+
 Run from the project root, with the robot's webcam plugged in:
 
 ```bash
