@@ -80,11 +80,15 @@ _BANDS_WIDTH = {                # how wide the target looks, in pixels
 _BANDS_HEIGHT = {               # how far the target's BOTTOM edge is above the
                                 # bottom of the picture, in pixels (0 = at the very
                                 # bottom = right in front of the robot)
-    "color": (150, 200, 260),
-    "face":  (209, 251, 322),   # estimated from two photos: the chin sat ~74 above
-                                # the bottom at 60 inches and ~251 at 30 inches.
-                                # ROUGH - read the real numbers off the live view and
-                                # replace them. The middle one is where it parks.
+    # The middle number is where it parks, and 180 puts that line exactly halfway
+    # down the picture (the frame is 360 tall, and these count UP from the bottom).
+    # Chin on the middle line = the right distance. Below it = too far, it comes to
+    # you. Above it = too close, it backs off.
+    #   Parks too far away  -> raise all three
+    #   Parks too close     -> lower all three
+    #   Fusses over nothing -> spread them further apart
+    "color": (145, 180, 225),
+    "face":  (145, 180, 225),
 }
 
 BANDS = _BANDS_WIDTH if MEASURE == "width" else _BANDS_HEIGHT
