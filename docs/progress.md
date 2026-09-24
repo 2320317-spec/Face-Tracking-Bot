@@ -32,6 +32,19 @@ Updated 24 September 2026. Short status of the build: what works, what's measure
 | Gestures | **Hand signals work.** `pi/gestures.py` ports the MediaPipe palm + 21-landmark models from the OpenCV Zoo (no new library). Its own dashboard mode, so nothing else competes for frames: point up/left/right to drive, two fingers to reverse, fist to stay put, open palm to STOP. Take your hand away and it stops. ~15 fps on the laptop. |
 | Pi setup | Pi 4 with Raspberry Pi OS Lite 64-bit, code cloned from GitHub, `deploy/setup_pi.sh` run, `tools/pi_check.py` passing |
 
+## How it behaves now (after the 25 Sep tuning session)
+
+The eight `Tuning` rows above are the history; this is the summary.
+
+| | |
+|---|---|
+| **Distance judged by** | Where the face sits in the picture, **not how wide it is** (`MEASURE = "height"`). Width shrank whenever the user turned their head, and the robot read that as them stepping back. |
+| **Parks when** | The chin is on the **centre line** of the live view. Three horizontal lines are drawn: follow / park here / too close. |
+| **Driving** | Continuous, ~8 cm/s (`SPEED_FWD 18`, `PULSE_DRIVE False`). |
+| **Turning** | In short nudges, 0.06–0.20 s depending on how far off-centre — because the Uno's PWM floor makes turning *gently* impossible, so it turns *briefly* instead. Pivots have their own power range (65–95, vs 70–140 for driving). |
+| **When it loses you** | Stands still. 5 frames, then 3 s of waiting and watching, then it sweeps. **It never moves while it cannot see** — that rule killed two separate bugs (walking into the user, and swinging past them). |
+| **Uno** | Soft ramp into every change: gentle up (180/s), quick down (700/s). The 500 ms failsafe still stops dead. |
+
 ## Measured (not estimated)
 
 | | Value |
