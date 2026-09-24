@@ -43,10 +43,12 @@ echo "    the system and aren't used by FollowBot. What matters is the 'Successf
 "$VENV/bin/pip" install --upgrade pip
 "$VENV/bin/pip" install -r requirements-pi.txt
 
-echo "== 5/6  Face models =="
+echo "== 5/6  Face and hand models =="
 mkdir -p pi/models
 for model in face_detection_yunet/face_detection_yunet_2023mar.onnx \
-             face_recognition_sface/face_recognition_sface_2021dec.onnx; do
+             face_recognition_sface/face_recognition_sface_2021dec.onnx \
+             palm_detection_mediapipe/palm_detection_mediapipe_2023feb.onnx \
+             handpose_estimation_mediapipe/handpose_estimation_mediapipe_2023feb.onnx; do
     name=$(basename "$model")
     if [ -s "pi/models/$name" ]; then
         echo "   $name - already there"
