@@ -171,16 +171,23 @@ TURN_ON_MAX = 0.20  # seconds - the biggest, when you are at the edge of the pic
 #   Too slow                      -> longer PULSE_ON, or shorter PULSE_OFF
 #   Want the old continuous motion -> PULSE_TURN = False
 PULSE_TURN = True
+PULSE_DRIVE = False # Does DRIVING pause too, or only turning?
+                    #   False  drive smoothly and continuously, pause only to turn.
+                    #          Driving straight barely blurs the picture - it is
+                    #          rotation that smears it - so the pauses are not needed
+                    #          for going forwards, and it looks much better.
+                    #   True   step-pause-step even when driving straight. Choose this
+                    #          if the robot loses your face while approaching; the
+                    #          pauses give the camera a clean look between steps.
 PULSE_ON = 0.25     # seconds of actually moving
 PULSE_OFF = 0.22    # seconds of standing still and looking. Must be long enough for
                     # 2-3 camera frames: at 12 fps that is about 0.2 s.
 
 
 # ---- Speeds (% of full motor speed) ------------------------------------------
-SPEED_FWD = 30      # driving toward the target. Note this is the speed DURING a step -
-                    # the pauses mean the robot actually closes at a bit over half of it.
-                    # Real approach speed is roughly SPEED_FWD x PULSE_ON/(PULSE_ON+PULSE_OFF).
-                    # Originally: Kept deliberately low: the robot acts on
+SPEED_FWD = 18      # driving toward the target. With PULSE_DRIVE = False this is the
+                    # real, continuous speed: about 8 cm/s. (If you turn PULSE_DRIVE on,
+                    # the pauses cut it to roughly half.) Kept deliberately low: the robot acts on
                     # pictures up to 100 ms old at 10 fps, so a fast robot overshoots and
                     # then hunts back and forth. Raise it once the room is bright and the
                     # camera manages ~20 fps.
@@ -337,8 +344,10 @@ class Follower:
         # own view every moment it is moving.
         if PULSE_TURN:
             phase = now % (PULSE_ON + PULSE_OFF)
-            if phase >= PULSE_ON:                   # the pause: stand still and look
-                fwd = turn = 0
+            if phase >= PULSE_ON:                   # the pause
+                turn = 0
+                if PULSE_DRIVE:
+                    fwd = 0                         # stand completely still to look
             elif turn:
                 # Turning happens at the START of each step, for a length that depends
                 # on how far off-center you are. This is the steering: short flick for
