@@ -145,7 +145,7 @@ def draw_distance_bar(frame, mode, w):
                               resume      stop   backup
     """
     resume, stop, backup = BANDS[mode]
-    x0, x1, y = 12, W - 12, H - 20                    # the bar's box
+    x0, x1, y = 10, W - 10, H - 14                    # the bar itself, 8 px tall
     span = backup * 1.6                               # the widest w the bar shows
     at = lambda v: int(x0 + (x1 - x0) * min(v, span) / span)
 
@@ -156,12 +156,10 @@ def draw_distance_bar(frame, mode, w):
                         (at(backup), x1, (0, 0, 120))):          # back up: too close
         cv2.rectangle(frame, (a, y), (b, y + 8), color, -1)
     for v in (resume, stop, backup):                             # the thresholds
-        cv2.line(frame, (at(v), y - 3), (at(v), y + 11), (200, 200, 200), 1)
+        cv2.line(frame, (at(v), y - 3), (at(v), y + 11), (220, 220, 220), 1)
 
     if w:                                             # where you are right now
-        cv2.drawMarker(frame, (at(w), y + 4), WHITE, cv2.MARKER_TRIANGLE_DOWN, 11, 2)
-        metres = FOCAL * (FACE_WIDTH_M if mode == "face" else 0.20) / w
-        put_label(frame, f"w={w}  {metres:.2f} m", at(w) - 30, y - 6, WHITE, 0.4, 1)
+        cv2.drawMarker(frame, (at(w), y + 4), WHITE, cv2.MARKER_TRIANGLE_DOWN, 12, 2)
 
 
 def live_view(frame, mode, who, box, faces, followed, lock, state_text, fwd, turn,
@@ -203,10 +201,23 @@ def live_view(frame, mode, who, box, faces, followed, lock, state_text, fwd, tur
             cv2.rectangle(frame, (fx, fy), (fx + fw, fy + fh), YELLOW, 1)
             put_label(frame, "last seen", fx, fy - 8, YELLOW, 0.45, 1)
 
-    if mode in BANDS:                                 # not in manual or gesture mode
-        draw_distance_bar(frame, mode, target_w)
+    # A dark strip along the bottom so the writing is readable over a bright room,
+    # with the text on its own line ABOVE the distance bar - they used to be drawn on
+    # the same line and printed on top of each other.
+    strip = frame[H - 42:H].copy()
+    cv2.rectangle(frame, (0, H - 42), (W, H), (0, 0, 0), -1)
+    cv2.addWeighted(strip, 0.25, frame[H - 42:H], 0.75, 0, frame[H - 42:H])
 
-    put_label(frame, f"{state_text}  |  {describe(fwd, turn)}", 8, H - 26, WHITE, 0.5, 1)
+    cv2.putText(frame, f"{state_text}  |  {describe(fwd, turn)}", (8, H - 24),
+                FONT, 0.5, WHITE, 1, cv2.LINE_AA)
+
+    if mode in BANDS:                                 # not in manual or gesture mode
+        if target_w:                                  # the distance, right-aligned so it
+            metres = FOCAL * (FACE_WIDTH_M if mode == "face" else 0.20) / target_w
+            text = f"w={target_w}  {metres:.2f} m"
+            (tw, _), _ = cv2.getTextSize(text, FONT, 0.5, 1)
+            cv2.putText(frame, text, (W - tw - 8, H - 24), FONT, 0.5, YELLOW, 1, cv2.LINE_AA)
+        draw_distance_bar(frame, mode, target_w)
     return cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, STREAM_QUALITY])[1].tobytes()
 
 
