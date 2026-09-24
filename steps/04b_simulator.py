@@ -40,7 +40,11 @@ import numpy as np
 
 # Use the robot's own brain (pi/brain.py): tune it there and the simulator shows the effect
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "pi"))
-from brain import W, BANDS, DEAD_ZONE, ALIGN_ZONE, Follower, wheels, describe
+# _BANDS_WIDTH, not BANDS: this simulator works out how WIDE a target looks from
+# how far away it is, so it always uses the width thresholds - even when the real
+# robot is set to judge distance by height instead (MEASURE in brain.py).
+from brain import W, DEAD_ZONE, ALIGN_ZONE, Follower, wheels, describe
+from brain import _BANDS_WIDTH as BANDS
 import moves                                # the tricks: spin, dance, nod, shake
 
 

@@ -50,12 +50,44 @@ W, H = 480, 360
 #   Slow to start following again   -> make that gap smaller
 #   Goes forward, back, forward...  -> move BACKUP further above STOP
 #   Faces: keep RESUME at 30 or more (faces under ~26 px aren't detected)
-BANDS = {
+# ---- HOW the robot judges distance -------------------------------------------
+# Two ways, and they fail differently:
+#
+#   "width"   How WIDE the target looks. Simple, works for any camera angle - but
+#             it shrinks when you turn your head, and the robot reads that as you
+#             stepping away and creeps toward you.
+#
+#   "height"  How HIGH UP the target sits in the picture. With the camera fixed,
+#             something far away appears low in the frame and something near
+#             appears high. Turning your head does not move it, so it does not
+#             drift - but it assumes the camera does not get knocked, and it is
+#             calibrated for one person's height and posture.
+#
+#             The live view draws the three thresholds as horizontal lines, so
+#             "on the line" really does mean "at the right distance".
+#
+# Both feed the SAME follow / hold / back logic below. Whichever is chosen, the
+# number given to the brain gets bigger as the target gets nearer.
+MEASURE = "height"
+
+_BANDS_WIDTH = {                # how wide the target looks, in pixels
     "color": (89, 104, 130),    # 20 cm target:     ~0.94 m / 0.80 m / 0.64 m
     "face":  (57, 66, 79),      # a face:  35 in / 30 in / 25 in  =  0.89 / 0.76 / 0.64 m
-                                # These came from a real measurement, not from the formula:
-                                # w=66 was read on the bar at a tape-measured 30 inches.
+                                # Measured, not calculated: w=66 was read on the bar
+                                # at a tape-measured 30 inches.
 }
+
+_BANDS_HEIGHT = {               # how far the target's BOTTOM edge is above the
+                                # bottom of the picture, in pixels (0 = at the very
+                                # bottom = right in front of the robot)
+    "color": (150, 200, 260),
+    "face":  (209, 251, 322),   # estimated from two photos: the chin sat ~74 above
+                                # the bottom at 60 inches and ~251 at 30 inches.
+                                # ROUGH - read the real numbers off the live view and
+                                # replace them. The middle one is where it parks.
+}
+
+BANDS = _BANDS_WIDTH if MEASURE == "width" else _BANDS_HEIGHT
 # NOTE for face mode: following this close only works if the camera can SEE your face
 # from there. On a table, level with a seated person, it is fine - that is how these
 # numbers were set. On the floor at 20 cm tilted 30 deg, the frame at 0.55 m covers

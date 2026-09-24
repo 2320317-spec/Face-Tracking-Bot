@@ -32,7 +32,7 @@ import cv2
 import gestures
 import moves
 import web
-from brain import W, H, DEAD_ZONE, ALIGN_ZONE, BANDS, Follower, describe
+from brain import W, H, DEAD_ZONE, ALIGN_ZONE, BANDS, MEASURE, Follower, describe
 from vision import Camera, find_color, FaceTools, FaceLock, head_turn, LEARN_MAX, FOCAL, FACE_WIDTH_M
 
 
@@ -87,6 +87,18 @@ def setup_button(shared):
     return button                                       # keep it: if it's thrown away, it stops working
 
 
+def nearness(box):
+    """The one number the brain uses for distance. Bigger = nearer.
+
+    MEASURE = "width"   how wide the target looks
+    MEASURE = "height"  how far its bottom edge sits ABOVE the bottom of the picture.
+                        Far away -> low in the frame -> small number.
+                        Up close -> high in the frame -> big number.
+    Both get bigger as you approach, so the follow / hold / back logic is identical."""
+    x, y, w, h = box
+    return w if MEASURE == "width" else H - (y + h)
+
+
 # ---- The live view picture -------------------------------------------------------------
 def put_label(frame, text, x, y, color, size=0.5, thickness=2):
     """Write text at (x, y), but pushed back inside the picture if it would run off the edge."""
@@ -132,6 +144,27 @@ def draw_hand(frame, hand, gesture, obeying):
     cv2.arrowedLine(frame, tuple(pts[5]), tuple(pts[8]), ORANGE, 2, tipLength=0.3)
     text = (obeying or gesture or "?").replace("-", " ")
     put_label(frame, text, pts[:, 0].min(), pts[:, 1].min() - 8, GREEN if obeying else GRAY)
+
+
+def draw_distance_lines(frame, mode):
+    """The three thresholds as horizontal lines, for MEASURE = "height".
+
+    This is the whole idea made visible: put your chin ON the middle line and the
+    robot is at the distance you want. Below it, you are too far and it comes to
+    you. Above it, you are too close and it backs off."""
+    resume, stop, backup = BANDS[mode]
+    for value, color, name in ((resume, (0, 140, 0), "follow"),
+                               (stop, (0, 200, 255), "park here"),
+                               (backup, (0, 0, 220), "too close")):
+        y = H - value                                 # value counts UP from the bottom
+        if 0 < y < H - 44:
+            dashed = 18 if name != "park here" else 0
+            if dashed:                                # dashes for the outer two
+                for x in range(6, W - 6, dashed * 2):
+                    cv2.line(frame, (x, y), (x + dashed, y), color, 1)
+            else:
+                cv2.line(frame, (6, y), (W - 6, y), color, 2)
+            put_label(frame, name, W - 78, y - 4, color, 0.4, 1)
 
 
 def draw_distance_bar(frame, mode, w):
@@ -211,10 +244,16 @@ def live_view(frame, mode, who, box, faces, followed, lock, state_text, fwd, tur
     cv2.putText(frame, f"{state_text}  |  {describe(fwd, turn)}", (8, H - 24),
                 FONT, 0.5, WHITE, 1, cv2.LINE_AA)
 
+    if mode in BANDS and MEASURE == "height":
+        draw_distance_lines(frame, mode)
+
     if mode in BANDS:                                 # not in manual or gesture mode
-        if target_w:                                  # the distance, right-aligned so it
-            metres = FOCAL * (FACE_WIDTH_M if mode == "face" else 0.20) / target_w
-            text = f"w={target_w}  {metres:.2f} m"
+        if target_w:                                  # the reading, right-aligned so it
+            if MEASURE == "width":
+                metres = FOCAL * (FACE_WIDTH_M if mode == "face" else 0.20) / target_w
+                text = f"w={target_w}  {metres:.2f} m"
+            else:
+                text = f"height {target_w}"
             (tw, _), _ = cv2.getTextSize(text, FONT, 0.5, 1)
             cv2.putText(frame, text, (W - tw - 8, H - 24), FONT, 0.5, YELLOW, 1, cv2.LINE_AA)
         draw_distance_bar(frame, mode, target_w)
@@ -281,18 +320,22 @@ def main():
             elif mode == "color":
                 box, _ = find_color(frame)
                 if box is not None:
-                    target = (box[0] + box[2] // 2, box[2])
+                    target = (box[0] + box[2] // 2, nearness(box))
             elif mode == "face":
                 faces = tools.find(frame)
                 if who == "simple":                     # whoever is biggest
                     followed = faces[0] if faces else None
                     if followed is not None:
                         x, y, w, h = followed["box"]
-                        target = (x + w // 2, w)
+                        target = (x + w // 2, nearness(followed["box"]))
                 else:                                   # only you, smoothed
                     followed = lock.update(frame, faces)
                     if followed is not None:
-                        target = (round(lock.x), round(lock.w))
+                        # x and w come from the lock, which smooths them. In height mode
+                        # the height is taken from the box itself - it is steady enough
+                        # not to need smoothing, because it doesn't move when you turn.
+                        target = (round(lock.x),
+                                  round(lock.w) if MEASURE == "width" else nearness(followed["box"]))
 
             # ---- 3. DECIDE ----
             if not shared.running:                      # STOPPED: wheels still, brain waits
