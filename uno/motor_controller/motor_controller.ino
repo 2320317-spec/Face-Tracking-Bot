@@ -63,6 +63,22 @@ const int MIN_PWM = 70;              // 0-255
 //   Still too sudden           -> lower MAX_PWM, or slow the ramp below
 const int MAX_PWM = 140;             // 0-255
 
+// ---- A SEPARATE, GENTLER RANGE FOR TURNING ON THE SPOT -----------------------
+// Driving and pivoting are different jobs and they do not want the same power.
+// Sharing one range is why the robot snapped round whenever it needed to turn:
+// the floor that lets it drive was also the slowest it could ever turn.
+//
+// These only apply when the robot is turning in place (no forward command). When
+// it is driving AND turning, the two wheels just run at slightly different speeds
+// and the curve is gentle anyway.
+//
+// Find the real numbers with the "c" command - it sweeps the PWM up and tells you
+// the value at each step, so you can see exactly where the wheels start to move.
+//   Won't pivot at all   -> raise MIN_PWM_TURN
+//   Still snaps round    -> lower MAX_PWM_TURN
+const int MIN_PWM_TURN = 65;         // slowest that still pivots the robot
+const int MAX_PWM_TURN = 95;         // fastest it may ever pivot - well under MAX_PWM
+
 // ---- Ramping: how fast the wheels are allowed to CHANGE speed ----------------
 // Without this, a new command hits the motors instantly and the robot jumps -
 // it "bursts out" on every move. The ramp spreads the change over a moment, so
@@ -92,6 +108,7 @@ byte len = 0;                        // how much of it we have so far
 unsigned long lastCmd = 0;           // when the last good command arrived (millis)
 bool stopped = true;                 // are the motors currently stopped?
 
+bool pivoting = false;               // turning on the spot? (then the gentler range is used)
 int targetL = 0, targetR = 0;        // the speed each wheel is being asked for (-100..100)
 float curL = 0, curR = 0;            // the speed each wheel is actually at, right now
 unsigned long lastRamp = 0;          // when the ramp last moved them
@@ -100,9 +117,9 @@ unsigned long lastRamp = 0;          // when the ramp last moved them
 // One wheel. v is -100..100. Any non-zero v gets at least MIN_PWM, so a small
 // number still produces movement instead of a buzz.
 // =============================================================================
-void motor(int dirPin, int pwmPin, bool fwdLevel, int v) {
+void motor(int dirPin, int pwmPin, bool fwdLevel, int v, int lo, int hi) {
   digitalWrite(dirPin, v >= 0 ? fwdLevel : !fwdLevel);
-  analogWrite(pwmPin, v == 0 ? 0 : map(abs(v), 1, 100, MIN_PWM, MAX_PWM));
+  analogWrite(pwmPin, v == 0 ? 0 : map(abs(v), 1, 100, lo, hi));
 }
 
 // =============================================================================
@@ -124,6 +141,9 @@ void drive(int fwd, int turn) {
     l = l * 100 / m;
     r = r * 100 / m;
   }
+
+  // Turning on the spot gets its own, gentler power range.
+  pivoting = (fwd == 0 && turn != 0);
 
   // Only ASK for these speeds. ramp() below walks the wheels toward them.
   targetL = l;
@@ -153,8 +173,10 @@ void ramp() {
   curL = eased(curL, targetL, dt);
   curR = eased(curR, targetR, dt);
 
-  motor(DIR_L, PWM_L, FWD_L, (int)curL);
-  motor(DIR_R, PWM_R, FWD_R, (int)curR);
+  int lo = pivoting ? MIN_PWM_TURN : MIN_PWM;
+  int hi = pivoting ? MAX_PWM_TURN : MAX_PWM;
+  motor(DIR_L, PWM_L, FWD_L, (int)curL, lo, hi);
+  motor(DIR_R, PWM_R, FWD_R, (int)curR, lo, hi);
 
   stopped = ((int)curL == 0 && (int)curR == 0);
   digitalWrite(LED, !stopped);                 // the Uno's own LED = "wheels are driving"
@@ -166,8 +188,9 @@ void ramp() {
 void stopNow() {
   targetL = targetR = 0;
   curL = curR = 0;
-  motor(DIR_L, PWM_L, FWD_L, 0);
-  motor(DIR_R, PWM_R, FWD_R, 0);
+  pivoting = false;
+  motor(DIR_L, PWM_L, FWD_L, 0, MIN_PWM, MAX_PWM);
+  motor(DIR_R, PWM_R, FWD_R, 0, MIN_PWM, MAX_PWM);
   stopped = true;
   digitalWrite(LED, LOW);
 }
@@ -190,8 +213,8 @@ void wheelTest() {
   for (auto &s : steps) {
     Serial.print(F("  "));
     Serial.println(s.what);
-    motor(DIR_L, PWM_L, FWD_L, s.l);           // straight to the wheels, skipping the mixer
-    motor(DIR_R, PWM_R, FWD_R, s.r);
+    motor(DIR_L, PWM_L, FWD_L, s.l, MIN_PWM, MAX_PWM);   // straight to the wheels, no mixer
+    motor(DIR_R, PWM_R, FWD_R, s.r, MIN_PWM, MAX_PWM);
     delay(HOLD);
     drive(0, 0);
     delay(400);
@@ -202,6 +225,38 @@ void wheelTest() {
 }
 
 // =============================================================================
+// The "c" command: creep the PWM upward and say what it is at each step, so you
+// can SEE the number where the wheels first move instead of guessing it.
+//
+// Run it twice over: the first half drives both wheels forward (that gives
+// MIN_PWM), the second half pivots on the spot (that gives MIN_PWM_TURN).
+// Wheels ON THE FLOOR for this - friction is the whole point of the measurement.
+// =============================================================================
+void calibrate() {
+  for (byte part = 0; part < 2; part++) {
+    Serial.println();
+    Serial.println(part == 0 ? F("  DRIVING - watch for the first PWM that rolls it forward")
+                             : F("  PIVOTING - watch for the first PWM that turns it on the spot"));
+    for (int pwm = 40; pwm <= 150; pwm += 5) {
+      Serial.print(F("    pwm "));
+      Serial.println(pwm);
+      digitalWrite(DIR_L, FWD_L);
+      digitalWrite(DIR_R, part == 0 ? FWD_R : !FWD_R);    // same way, then opposite
+      analogWrite(PWM_L, pwm);
+      analogWrite(PWM_R, pwm);
+      delay(900);
+      analogWrite(PWM_L, 0);
+      analogWrite(PWM_R, 0);
+      delay(500);                                          // a gap, so each step is separate
+    }
+  }
+  Serial.println(F("  done - put the two numbers into MIN_PWM and MIN_PWM_TURN"));
+  stopNow();
+  lastCmd = millis();
+}
+
+
+// =============================================================================
 void setup() {
   pinMode(DIR_L, OUTPUT); pinMode(PWM_L, OUTPUT);
   pinMode(DIR_R, OUTPUT); pinMode(PWM_R, OUTPUT);
@@ -210,11 +265,12 @@ void setup() {
   Serial.begin(115200);                        // must match BAUD in pi/follow.py
   // The version line is here so you can always tell WHICH sketch is on the board.
   // Bump it whenever you change the motor settings.
-  Serial.println(F("FollowBot motor controller  v2 - soft ramp, MIN_PWM 70, MAX_PWM 140"));
+  Serial.println(F("FollowBot motor controller  v3 - soft ramp, separate turning power"));
   Serial.println(F("Type TWO NUMBERS, for example:"));
   Serial.println(F("  50 0  forward     0 50  spin right     0 -50  spin left"));
   Serial.println(F("  -40 0 backwards   50 30 curve right    0 0    stop"));
   Serial.println(F("  t     test each wheel on its own"));
+  Serial.println(F("  c     find the slowest PWM that moves it (wheels ON the floor)"));
 }
 
 void loop() {
@@ -228,6 +284,8 @@ void loop() {
 
       if (len == 1 && (line[0] == 't' || line[0] == 'T')) {
         wheelTest();
+      } else if (len == 1 && (line[0] == 'c' || line[0] == 'C')) {
+        calibrate();
       } else if (len > 0 && sscanf(line, "%d %d", &fwd, &turn) == 2) {
         drive(fwd, turn);
         lastCmd = millis();
@@ -235,7 +293,7 @@ void loop() {
         // Not two numbers and not "t". Say so instead of silently doing nothing -
         // otherwise a typo looks exactly like broken hardware. The wheels are left
         // alone on purpose: a line we don't understand must never move the robot.
-        Serial.println(F("  ? I need two numbers, like \"50 0\"  (forward, turn), or t"));
+        Serial.println(F("  ? I need two numbers, like \"50 0\"  (forward, turn), or t, or c"));
       }
       len = 0;                                 // ready for the next line
     } else if (len < sizeof(line) - 1) {

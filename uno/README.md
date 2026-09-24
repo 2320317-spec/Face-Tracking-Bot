@@ -24,6 +24,7 @@ Open the Serial Monitor at **115200 baud**, set the line ending to **Newline**, 
 
 | You type | What should happen |
 |---|---|
+| `c` | **Find the slowest PWM that actually moves it.** Creeps the power up in steps of 5, announcing each one. Runs twice: driving (gives `MIN_PWM`) then pivoting (gives `MIN_PWM_TURN`). **Wheels ON the floor** for this one — friction is what you're measuring. |
 | `t` | The wheel test: left forward, left back, right forward, right back, both forward, spin right — each for about a second, announced in the monitor |
 | `50 0` | Both wheels forward |
 | `0 50` | Spins right on the spot (left wheel forward, right wheel back) |
