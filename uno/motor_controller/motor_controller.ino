@@ -208,7 +208,10 @@ void setup() {
   pinMode(LED, OUTPUT);
   drive(0, 0);                                 // never move on power-up
   Serial.begin(115200);                        // must match BAUD in pi/follow.py
-  Serial.println(F("FollowBot motor controller ready. Type TWO NUMBERS, for example:"));
+  // The version line is here so you can always tell WHICH sketch is on the board.
+  // Bump it whenever you change the motor settings.
+  Serial.println(F("FollowBot motor controller  v2 - soft ramp, MIN_PWM 70, MAX_PWM 140"));
+  Serial.println(F("Type TWO NUMBERS, for example:"));
   Serial.println(F("  50 0  forward     0 50  spin right     0 -50  spin left"));
   Serial.println(F("  -40 0 backwards   50 30 curve right    0 0    stop"));
   Serial.println(F("  t     test each wheel on its own"));
