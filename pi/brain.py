@@ -189,6 +189,19 @@ SPEED_BACK = 22     # backing away when it's too close (it cannot see behind its
 
 
 # ---- Losing the target --------------------------------------------------------
+# Losing sight of you usually means you turned your head or the picture blurred -
+# not that you walked away. So the robot does nothing dramatic at first: it stands
+# still, keeps watching the spot where you were, and only starts sweeping if you
+# really do not come back.
+#
+#   frames 1-5        keep the last turn (a flicker)
+#   next 3 seconds    STAND STILL and watch          <- WAIT_BEFORE_SEARCH
+#   after that        sweep left and right to look for you
+#
+#   It starts hunting too eagerly   -> raise WAIT_BEFORE_SEARCH
+#   It sits there while you walk off -> lower it
+WAIT_BEFORE_SEARCH = 3.0    # seconds of standing still before it starts looking around
+
 LOST_GRACE = 5      # Detections flicker for a frame or two. Keep the last command for
                     # up to 5 frames (~0.2-0.3 s) before deciding it's really gone.
                     #   Starts searching too late -> lower it. Stutters -> raise it.
@@ -242,10 +255,11 @@ class Follower:
 
     def reset(self):
         """Start fresh (used when switching modes)."""
-        self.state = "follow"       # follow | hold | back | search | idle
+        self.state = "follow"       # follow | hold | back | wait | search | idle
         self.lost = 0               # frames since the target was last seen
         self.cmd = (0, 0)           # the last command we gave
         self.last_side = 1          # which side the target was last seen on: +1 right, -1 left
+        self.waiting_since = 0.0    # when it lost you and started waiting (seconds)
         self.search_start = 0.0     # when the current search started (seconds)
 
     def update(self, target, mode, now=None):
@@ -268,7 +282,15 @@ class Follower:
                 # "keep driving at them". Turning blind is harmless; driving is not.
                 self.cmd = (0, self.cmd[1])
                 return self.cmd
-            if self.state not in ("search", "idle"):     # really gone: start searching
+            # Really gone now. First just wait and watch - you have probably only
+            # turned your head, and a robot that sweeps off looking for you the
+            # moment your face blurs is worse than one that waits a few seconds.
+            if self.state not in ("wait", "search", "idle"):
+                self.state, self.waiting_since = "wait", now
+            if self.state == "wait":
+                if now - self.waiting_since < WAIT_BEFORE_SEARCH:
+                    self.cmd = (0, 0)                   # stand still and look
+                    return self.cmd
                 self.state, self.search_start = "search", now
             turn = self.search_turn(now - self.search_start) if self.state == "search" else None
             if turn is None:                            # searching is off, or we gave up: stop and wait
@@ -279,7 +301,7 @@ class Follower:
         # -- Target found --
         self.lost = 0
         x, w = target
-        if self.state in ("search", "idle"):            # found it again: follow (the distance check
+        if self.state in ("wait", "search", "idle"):    # found it again: follow (the distance check
             self.state = "follow"                       # below turns this into hold/back if it's close)
         resume_w, stop_w, backup_w = BANDS[mode]
 
@@ -355,6 +377,8 @@ class Follower:
             return self.state.upper(), self.state
         if self.lost <= LOST_GRACE:
             return "LOST - keep going", "lost"
+        if self.state == "wait":
+            return "WAITING for you", "lost"
         if self.state == "search":
             return "SEARCHING " + ("right" if self.cmd[1] > 0 else "left"), "search"
         return "NO TARGET - waiting", "idle"
