@@ -98,7 +98,15 @@ LEARN_MAX = 5           # Keep up to 5 fingerprints of you (different angles = m
 HEAD_TURN = 0.15        # How far the nose must be off the middle of the eyes (as a fraction of the eye
                         # gap) to count as "head turned". Lower = notices smaller turns.
 
-FACE_WIDTH_M = 0.15     # A typical face is about 15 cm wide - used for the distance estimate.
+FACE_WIDTH_M = 0.12     # How wide a face is, in metres, AS THE DETECTOR DRAWS IT - not ear
+                        # to ear. MEASURED, not assumed: the robot read w=66 while the user
+                        # stood 30 inches (0.762 m) away, and w x distance = 50.3, which with
+                        # this FOCAL means 12 cm. The old guess of 15 cm made every distance
+                        # read 24% too far, so the robot drove 24% too close before stopping.
+                        #
+                        # To re-measure: stand square to the camera at a tape-measured
+                        # distance, read w from the distance bar, then
+                        #     FACE_WIDTH_M = w x distance_in_metres / FOCAL
 FOCAL = (W / 2) / math.tan(math.radians(60) / 2)   # ~416 px for a 60 degree webcam.
                         # Distance = FOCAL x FACE_WIDTH_M / w. If "~m" is off, change the 60 to your
                         # camera's field of view.

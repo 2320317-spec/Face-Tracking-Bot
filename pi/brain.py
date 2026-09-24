@@ -51,8 +51,10 @@ W, H = 480, 360
 #   Goes forward, back, forward...  -> move BACKUP further above STOP
 #   Faces: keep RESUME at 30 or more (faces under ~26 px aren't detected)
 BANDS = {
-    "color": (92, 104, 119),    # 20 cm target:     ~0.90 m / 0.80 m / 0.70 m
-    "face":  (69, 78, 89),      # face (~15 cm):    ~0.90 m / 0.80 m / 0.70 m
+    "color": (89, 104, 130),    # 20 cm target:     ~0.94 m / 0.80 m / 0.64 m
+    "face":  (57, 66, 79),      # a face:  35 in / 30 in / 25 in  =  0.89 / 0.76 / 0.64 m
+                                # These came from a real measurement, not from the formula:
+                                # w=66 was read on the bar at a tape-measured 30 inches.
 }
 # NOTE for face mode: following this close only works if the camera can SEE your face
 # from there. On a table, level with a seated person, it is fine - that is how these
