@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="276" viewBox="0 0 680 276" role="img">
+<style>
+  :root{
+    --s1:#ffffff; --b:#d3d0cb; --tp:#1a1815; --tsec:#5c5852;
+    --text-danger:#b91c1c; --text-accent:#b45309; --text-success:#15803d;
+    --blue-f:#e6f1fb; --blue-s:#a9cbec; --blue-t:#0c447c;
+    --teal-f:#e1f2f1; --teal-s:#9dcfcb; --teal-t:#0b4f4a;
+    --amber-f:#fdf0dc; --amber-s:#efcb94; --amber-t:#7a4b06;
+    --green-f:#e4f2e4; --green-s:#a6d0a6; --green-t:#14532d;
+    --red-f:#fbe9e9;  --red-s:#ebb3b3;  --red-t:#7f1d1d;
+    --gray-f:#f0efed; --gray-s:#d3d0cb; --gray-t:#3a3733;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --s1:#1c1a18; --b:#3e3a35; --tp:#edeae5; --tsec:#a8a39c;
+      --text-danger:#f87171; --text-accent:#fbbf24; --text-success:#4ade80;
+      --blue-f:#0f2a44; --blue-s:#2e5b87; --blue-t:#cfe4f7;
+      --teal-f:#0d2e2c; --teal-s:#2c625d; --teal-t:#cbe9e6;
+      --amber-f:#3a2a0e; --amber-s:#7a5a24; --amber-t:#f6dfb4;
+      --green-f:#12301c; --green-s:#2f6338; --green-t:#cde8d3;
+      --red-f:#3a1616;  --red-s:#7a3030;  --red-t:#f3cfcf;
+      --gray-f:#24221f; --gray-s:#4a4641; --gray-t:#e3e0db;
+    }
+  }
+  text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+  .t{font-size:14px;font-weight:400;fill:var(--tp)}
+  .ts{font-size:12px;font-weight:400;fill:var(--tsec)}
+  .th{font-size:14px;font-weight:500;fill:var(--tp)}
+  .arr{stroke:var(--tsec);stroke-width:1.5;fill:none}
+  .leader{stroke:var(--b);stroke-width:.5;stroke-dasharray:3 3;fill:none}
+  .c-blue>rect,.c-blue>circle{fill:var(--blue-f);stroke:var(--blue-s);stroke-width:.5}
+  .c-blue>text{fill:var(--blue-t)}
+  .c-teal>rect,.c-teal>circle{fill:var(--teal-f);stroke:var(--teal-s);stroke-width:.5}
+  .c-teal>text{fill:var(--teal-t)}
+  .c-amber>rect,.c-amber>circle{fill:var(--amber-f);stroke:var(--amber-s);stroke-width:.5}
+  .c-amber>text{fill:var(--amber-t)}
+  .c-green>rect,.c-green>circle{fill:var(--green-f);stroke:var(--green-s);stroke-width:.5}
+  .c-green>text{fill:var(--green-t)}
+  .c-red>rect,.c-red>circle{fill:var(--red-f);stroke:var(--red-s);stroke-width:.5}
+  .c-red>text{fill:var(--red-t)}
+  .c-gray>rect,.c-gray>circle{fill:var(--gray-f);stroke:var(--gray-s);stroke-width:.5}
+  .c-gray>text{fill:var(--gray-t)}
+</style>
+  <title>Judging distance by where the face sits in the frame</title>
+  <desc>The 480 by 360 camera picture with three horizontal threshold lines drawn across it. A chin above the top line means too close and the robot backs off; between the top two lines it is parked; below the bottom line it is too far and the robot drives forward. The middle band between 140 and 180 is a deadband whose meaning depends on the current state.</desc>
+
+  <text class="th" x="70" y="46">What the camera sees · 480 × 360</text>
+  <rect x="70" y="56" width="240" height="180" rx="4" fill="none" stroke="var(--b)" stroke-width="0.5" stroke-dasharray="4 4"/>
+
+  <line x1="78" y1="121" x2="302" y2="121" stroke="var(--text-danger)" stroke-width="1" stroke-dasharray="6 5"/>
+  <line x1="78" y1="146" x2="302" y2="146" stroke="var(--text-accent)" stroke-width="2"/>
+  <line x1="78" y1="166" x2="302" y2="166" stroke="var(--text-success)" stroke-width="1" stroke-dasharray="6 5"/>
+
+  <line class="leader" x1="312" y1="121" x2="356" y2="121"/>
+  <line class="leader" x1="312" y1="146" x2="356" y2="146"/>
+  <line class="leader" x1="312" y1="166" x2="356" y2="166"/>
+
+  <g class="c-red">
+    <rect x="360" y="56" width="280" height="65" rx="4"/>
+    <text class="th" x="376" y="84">Back off</text>
+    <text class="ts" x="376" y="102">chin above 230 — too close</text>
+  </g>
+
+  <g class="c-teal">
+    <rect x="360" y="121" width="280" height="25" rx="4"/>
+    <text class="ts" x="376" y="139">Parked · 180 to 230</text>
+  </g>
+
+  <g class="c-gray">
+    <rect x="360" y="146" width="280" height="20" rx="4"/>
+    <text class="ts" x="376" y="160">140 to 180 · depends on state</text>
+  </g>
+
+  <g class="c-green">
+    <rect x="360" y="166" width="280" height="70" rx="4"/>
+    <text class="th" x="376" y="194">Drive forward</text>
+    <text class="ts" x="376" y="212">chin below 140 — too far</text>
+  </g>
+</svg>

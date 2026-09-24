@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="288" viewBox="0 0 680 288" role="img">
+<style>
+  :root{
+    --s1:#ffffff; --b:#d3d0cb; --tp:#1a1815; --tsec:#5c5852;
+    --text-danger:#b91c1c; --text-accent:#b45309; --text-success:#15803d;
+    --blue-f:#e6f1fb; --blue-s:#a9cbec; --blue-t:#0c447c;
+    --teal-f:#e1f2f1; --teal-s:#9dcfcb; --teal-t:#0b4f4a;
+    --amber-f:#fdf0dc; --amber-s:#efcb94; --amber-t:#7a4b06;
+    --green-f:#e4f2e4; --green-s:#a6d0a6; --green-t:#14532d;
+    --red-f:#fbe9e9;  --red-s:#ebb3b3;  --red-t:#7f1d1d;
+    --gray-f:#f0efed; --gray-s:#d3d0cb; --gray-t:#3a3733;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --s1:#1c1a18; --b:#3e3a35; --tp:#edeae5; --tsec:#a8a39c;
+      --text-danger:#f87171; --text-accent:#fbbf24; --text-success:#4ade80;
+      --blue-f:#0f2a44; --blue-s:#2e5b87; --blue-t:#cfe4f7;
+      --teal-f:#0d2e2c; --teal-s:#2c625d; --teal-t:#cbe9e6;
+      --amber-f:#3a2a0e; --amber-s:#7a5a24; --amber-t:#f6dfb4;
+      --green-f:#12301c; --green-s:#2f6338; --green-t:#cde8d3;
+      --red-f:#3a1616;  --red-s:#7a3030;  --red-t:#f3cfcf;
+      --gray-f:#24221f; --gray-s:#4a4641; --gray-t:#e3e0db;
+    }
+  }
+  text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Helvetica,Arial,sans-serif}
+  .t{font-size:14px;font-weight:400;fill:var(--tp)}
+  .ts{font-size:12px;font-weight:400;fill:var(--tsec)}
+  .th{font-size:14px;font-weight:500;fill:var(--tp)}
+  .arr{stroke:var(--tsec);stroke-width:1.5;fill:none}
+  .leader{stroke:var(--b);stroke-width:.5;stroke-dasharray:3 3;fill:none}
+  .c-blue>rect,.c-blue>circle{fill:var(--blue-f);stroke:var(--blue-s);stroke-width:.5}
+  .c-blue>text{fill:var(--blue-t)}
+  .c-teal>rect,.c-teal>circle{fill:var(--teal-f);stroke:var(--teal-s);stroke-width:.5}
+  .c-teal>text{fill:var(--teal-t)}
+  .c-amber>rect,.c-amber>circle{fill:var(--amber-f);stroke:var(--amber-s);stroke-width:.5}
+  .c-amber>text{fill:var(--amber-t)}
+  .c-green>rect,.c-green>circle{fill:var(--green-f);stroke:var(--green-s);stroke-width:.5}
+  .c-green>text{fill:var(--green-t)}
+  .c-red>rect,.c-red>circle{fill:var(--red-f);stroke:var(--red-s);stroke-width:.5}
+  .c-red>text{fill:var(--red-t)}
+  .c-gray>rect,.c-gray>circle{fill:var(--gray-f);stroke:var(--gray-s);stroke-width:.5}
+  .c-gray>text{fill:var(--gray-t)}
+</style>
+  <title>One steering cycle: driving is continuous, turning happens in nudges</title>
+  <desc>Across one 0.47 second cycle, the robot drives continuously. Turning happens only at the start of the moving window, and its length depends on how far off centre the target is: about 0.06 seconds for a small error and 0.20 seconds for a large one. The power is identical in both cases; only the duration changes.</desc>
+
+  <g class="c-gray">
+    <rect x="200" y="50" width="229" height="30" rx="4"/>
+    <text class="ts" x="216" y="70">Moving window · 0.25 s</text>
+  </g>
+  <g class="c-gray">
+    <rect x="431" y="50" width="199" height="30" rx="4"/>
+    <text class="ts" x="447" y="70">Paused · 0.22 s</text>
+  </g>
+
+  <g class="c-gray">
+    <rect x="40" y="96" width="150" height="44" rx="4"/>
+    <text class="th" x="56" y="116">Driving</text>
+    <text class="ts" x="56" y="132">never pauses</text>
+  </g>
+  <g class="c-green">
+    <rect x="200" y="96" width="430" height="44" rx="4"/>
+    <text class="ts" x="216" y="122">continuous — about 8 cm/s</text>
+  </g>
+
+  <g class="c-gray">
+    <rect x="40" y="150" width="150" height="44" rx="4"/>
+    <text class="th" x="56" y="170">Small error</text>
+    <text class="ts" x="56" y="186">0.06 s nudge</text>
+  </g>
+  <g class="c-amber">
+    <rect x="200" y="150" width="55" height="44" rx="4"/>
+  </g>
+
+  <g class="c-gray">
+    <rect x="40" y="204" width="150" height="44" rx="4"/>
+    <text class="th" x="56" y="224">Big error</text>
+    <text class="ts" x="56" y="240">0.20 s nudge</text>
+  </g>
+  <g class="c-amber">
+    <rect x="200" y="204" width="183" height="44" rx="4"/>
+    <text class="ts" x="216" y="231">same power, longer</text>
+  </g>
+</svg>
