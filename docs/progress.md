@@ -50,6 +50,11 @@ Updated 24 September 2026. Short status of the build: what works, what's measure
 - **Face fingerprints are never saved to disk**; they only exist while the program runs.
 - **The robot starts on boot now.** It holds the webcam and port 8000, so `sudo systemctl stop followbot` before running `pi/follow.py` by hand. Live log: `journalctl -u followbot -f`.
 - **iPad / iPhone can't show the video stream.** Safari refuses MJPEG, so the page falls back on its own to single pictures ~8×/s from `/frame.jpg` and shows `· STILLS` in the feed header. That is normal, not a fault. Chrome on a laptop gets the smooth stream.
+- **The webcam's own limits** (from `v4l2-ctl --list-ctrls` / `--list-formats-ext`, 24 Sep):
+  - **No zoom control at all**, and every mode is 4:3 (640x480 down to 160x120). So the "slight zoom" is simply the lens - a narrower field of view than the ~60 deg the maths assumed. It cannot be switched off; `FOCAL` in `vision.py` has to be measured instead.
+  - **No MJPG - YUYV only.** The MJPG request in `Camera` has always been a no-op on this camera.
+  - **It can do 30 fps at 640x480.** It doesn't, because `auto_exposure` is on "Aperture Priority" and the camera lengthens its exposure in dim light instead. Try `v4l2-ctl -d /dev/video0 -c auto_exposure=1`, then check whether `exposure_time_absolute` appears and set it.
+  - `power_line_frequency` is already 60 Hz, correct for the Philippines.
 - **Dim rooms halve the frame rate** (10–12 fps instead of ~20), which is the main thing making a follower wobble. Light the demo room.
 - **Hotspot vs home WiFi.** The Pi is back on home WiFi for now (`followbot.local`), with the hotspot profile saved but not auto-starting. Turn it back on before going out: `sudo nmcli connection modify followbot-ap connection.autoconnect yes` then reboot; `no` to come back. **On the hotspot it has no internet, so `git pull` only works on home WiFi** (or plug an Ethernet cable into the router, which keeps both).
 - **The Pi's clone still has the pre-rewrite history** (the Claude attribution was stripped and force-pushed). Its first update must be `git fetch origin && git reset --hard origin/main`, not `git pull`.

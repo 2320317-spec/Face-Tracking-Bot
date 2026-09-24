@@ -113,7 +113,14 @@ class Camera:
 
     def __init__(self, index=0):
         self.cap = cv2.VideoCapture(index)
+        # MJPG would halve the USB traffic, but THIS webcam doesn't offer it -
+        # `v4l2-ctl --list-formats-ext` shows YUYV only. The request is harmless and
+        # helps on cameras that do support it, so it stays.
         self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        # Ask for 30 fps. The camera can do it at 640x480, but its automatic exposure
+        # overrides that in dim light - it takes longer pictures instead, and the frame
+        # rate falls to ~12. More light is the real fix; see docs/progress.md.
+        self.cap.set(cv2.CAP_PROP_FPS, 30)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAPTURE[0])
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAPTURE[1])
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)            # keep at most one old frame waiting
