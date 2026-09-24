@@ -67,15 +67,23 @@ BANDS = {
 
 # ---- 2. STEERING: zones across the picture (pixels from the center) --------
 #
-#   | spin in place |  curve toward  | straight |  curve toward  | spin in place |
+#   |  curve hard   |  curve toward  | straight |  curve toward  |  curve hard   |
 #   0              120              210   240  270              360            480
-#                                         center
+#        (slowest)                       center                        (slowest)
 DEAD_ZONE = 30      # Within +-30 px of the center counts as "centered": no turning.
                     #   Wiggles left-right when you stand still -> make it bigger.
                     #   Doesn't point straight at you           -> make it smaller.
 
-ALIGN_ZONE = 120    # More than 120 px off-center: turn in place first, don't drive.
-                    # (Centering beats distance - otherwise it drives past you.)
+ALIGN_ZONE = 120    # Where the slowdown below reaches its minimum. Past this, the robot
+                    # is turning about as hard as it will, and driving at its slowest.
+
+TURN_SLOWDOWN = 0.45  # How much it slows down while turning toward you.
+                    # The further off-center you are, the slower it drives - at
+                    # ALIGN_ZONE or beyond it drives at 45% of SPEED_FWD, so it
+                    # CURVES round toward you instead of stopping to pivot.
+                    #   1.0  = never slows down (wide, lazy curves; may drive past you)
+                    #   0.45 = the current balance
+                    #   0.0  = stops dead and spins on the spot (the old behaviour)
 
 KP = 35             # How hard to turn: the turn % when the target is at the very edge.
                     #   turn = KP x (how far off-center / half the picture width)
@@ -131,8 +139,13 @@ LOST_GRACE = 5      # Detections flicker for a frame or two. Keep the last comma
 # It stops searching the moment the target is seen again. WHO counts as the
 # target is decided outside the brain: step 5 SIMPLE = anyone, SMART = only you.
 SEARCH = True           # False = just stop when the target is lost (no searching)
-SEARCH_TURN = 18        # Turn speed while searching, %.
-                        #   Misses you while sweeping past -> lower it (more time to spot you, less blur)
+SEARCH_TURN = 28        # Turn speed while searching, %. Brisker than the gentle turning it
+                        # uses to follow you (TURN_MAX), and that is on purpose: while
+                        # searching it only has to SPOT you, and it does that during the
+                        # standing-still pauses below, so a faster burst costs nothing.
+                        # Each burst moves ~26 deg and the camera sees 60 deg, so it still
+                        # cannot skip past you between looks.
+                        #   Misses you while sweeping past -> lower it, or lengthen SEARCH_LOOK
                         #   Takes too long to look around  -> raise it
 
 # The robot searches in little steps: turn a bit, STOP AND LOOK, turn a bit more.
@@ -148,7 +161,9 @@ SEARCH_LOOK = 0.50      # seconds standing still afterwards, looking. Needs to b
 SEARCH_SWEEP = 1.0      # Seconds of the first sweep (must be more than 0). Every next sweep is
                         # that much longer. Bigger = wider first look before turning back.
                         # (In the simulator 1.0 s = ~90 degrees, so sweep 3 already looks behind.)
-SEARCH_GIVE_UP = 20     # Seconds: stop searching after this long and wait. 0 = never give up.
+SEARCH_GIVE_UP = 35     # Seconds: stop searching after this long and wait. 0 = never give up.
+                        # It sweeps at about 22 deg/s now (gentle, in bursts), so it needs
+                        # longer than it used to. 35 s reaches roughly 120 deg either side.
 
 
 # =============================================================================
@@ -182,9 +197,9 @@ class Follower:
                 return self.cmd
             if self.state not in ("search", "idle"):     # really gone: start searching
                 self.state, self.search_start = "search", now
-            turn = self.search_turn(now - self.search_start) if self.state == "search" else 0
-            if turn == 0:                               # searching is off, or we gave up: stop and wait
-                self.state = "idle"
+            turn = self.search_turn(now - self.search_start) if self.state == "search" else None
+            if turn is None:                            # searching is off, or we gave up: stop and wait
+                self.state, turn = "idle", 0
             self.cmd = (0, turn)                        # search = turn in place, never drive
             return self.cmd
 
@@ -216,16 +231,24 @@ class Follower:
             self.last_side = 1 if err > 0 else -1   # remember the side (the search starts that way)
             if PULSE_TURN and (now % (PULSE_ON + PULSE_OFF)) >= PULSE_ON:
                 turn = 0                            # the pause half of the burst: look, don't turn
-        if abs(err) > ALIGN_ZONE:               # far off to the side: turn in place first
-            fwd = 0
+
+            # Slow down while turning, the further off-center the slower - so the robot
+            # CURVES toward you instead of stopping to spin. It never stops driving.
+            lean = min(1.0, abs(err) / ALIGN_ZONE)
+            fwd = round(fwd * (1 - (1 - TURN_SLOWDOWN) * lean))
 
         self.cmd = (fwd, turn)
         return self.cmd
 
     def search_turn(self, elapsed):
-        """The turn % while searching, `elapsed` seconds into the search. 0 = stop searching."""
+        """The turn % while searching, `elapsed` seconds into the search.
+
+        Returns 0 during the standing-still half of a step - that is a PAUSE, not the
+        end of the search - and None only when the search is over (switched off, or
+        given up). Those two must stay different: treating a pause as "give up" makes
+        the robot freeze after its very first burst and never look again."""
         if not SEARCH or (SEARCH_GIVE_UP and elapsed > SEARCH_GIVE_UP):
-            return 0
+            return None
         sweep, t = 1, elapsed
         while t >= sweep * SEARCH_SWEEP:        # which sweep are we in? sweep n lasts n x SEARCH_SWEEP
             t -= sweep * SEARCH_SWEEP
