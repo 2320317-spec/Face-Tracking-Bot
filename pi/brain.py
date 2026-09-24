@@ -88,7 +88,7 @@ _BANDS_HEIGHT = {               # how far the target's BOTTOM edge is above the
     #   Parks too close     -> lower all three
     #   Fusses over nothing -> spread them further apart
     "color": (145, 180, 225),
-    "face":  (145, 180, 225),
+    "face":  (140, 180, 230),
 }
 
 BANDS = _BANDS_WIDTH if MEASURE == "width" else _BANDS_HEIGHT
@@ -128,7 +128,26 @@ KP = 35             # How hard to turn: the turn % when the target is at the ver
                     #   e.g. target at x=300: 60 px off -> 35 x 60/240 = 9 % turn
                     #   Overshoots and wobbles -> lower it. Turns too lazily -> raise it.
 
-TURN_MAX = 25       # Never turn harder than this %, however far off-center.
+TURN_MAX = 20       # Never turn harder than this %, however far off-center.
+
+
+# ---- How LONG each turn nudge lasts ------------------------------------------
+# The motors have a floor: the Uno's MIN_PWM means turn=5 and turn=25 come out at
+# nearly the same wheel speed, so asking for a gentler turn barely does anything.
+# Steering by voltage alone is therefore almost on/off.
+#
+# So the robot steers by TIME instead. Every step it turns for a moment and then
+# stops; a small error gets a short nudge, a big one a longer nudge:
+#
+#     just outside the dead zone  ->  a flick of TURN_ON_MIN
+#     way off at the picture edge ->  the full TURN_ON_MAX
+#
+# That gives fine control the motors can actually deliver, and it is what stops
+# the robot spinning off every time you step slightly to one side.
+#   Overshoots / still snaps round -> lower TURN_ON_MAX
+#   Too lazy to line up on you     -> raise TURN_ON_MIN
+TURN_ON_MIN = 0.06  # seconds - the smallest nudge
+TURN_ON_MAX = 0.20  # seconds - the biggest, when you are at the edge of the picture
 
 
 # ---- Turning in short bursts -------------------------------------------------
@@ -293,8 +312,17 @@ class Follower:
         # Both wheels stop during the pause, so the camera gets a sharp picture of
         # where you are before the next step. Without this the robot is blurring its
         # own view every moment it is moving.
-        if PULSE_TURN and (now % (PULSE_ON + PULSE_OFF)) >= PULSE_ON:
-            fwd = turn = 0
+        if PULSE_TURN:
+            phase = now % (PULSE_ON + PULSE_OFF)
+            if phase >= PULSE_ON:                   # the pause: stand still and look
+                fwd = turn = 0
+            elif turn:
+                # Turning happens at the START of each step, for a length that depends
+                # on how far off-center you are. This is the steering: short flick for
+                # a small correction, longer for a big one.
+                nudge = TURN_ON_MIN + (TURN_ON_MAX - TURN_ON_MIN) * min(1.0, abs(err) / ALIGN_ZONE)
+                if phase >= nudge:
+                    turn = 0
 
         self.cmd = (fwd, turn)
         return self.cmd
