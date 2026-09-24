@@ -90,6 +90,15 @@ The eight `Tuning` rows above are the history; this is the summary.
 
 ## Next
 
+0. **A full walkthrough review — the user asked for this, and it comes first.** Not new code: an explanation of how the whole thing works and *why it was built that way*. The ground to cover:
+   - **The chain**, end to end: camera → `vision.py` finds a target → `brain.py` decides → `follow.py` sends `"<fwd> <turn>"` over USB → the Uno mixes it into two wheel speeds → the motors. Plus the parallel path: `web.py` serves the dashboard, which reads status and writes mode / joystick / tricks back.
+   - **The decision logic**: the follow / hold / back / wait / search / idle state machine, why it uses hysteresis (three thresholds, not one), and how distance is judged by where the face sits in the frame rather than how wide it is.
+   - **The design rules that came out of failures**, which are the interesting part: *if it cannot see, it does not move* (two bugs); *steer by how long, not how hard* (the Uno's PWM floor); *wait and watch before searching*; and why nearly every problem traced back to acting on a 12 fps view that was already stale.
+   - **Measured vs guessed** — what has a number behind it (face width, detection times, the height bands) and what is still an assumption (every PWM value, until the `c` sweep runs on a charged pack).
+   - **The side paths**: gesture mode and why it skips face detection, the tricks, the failsafes (500 ms Uno timeout, manual timeout, STOP).
+
+   Roughly 2,300 lines across seven files, so it is a big review but a finite one. No hardware needed.
+
 1. **Run the `c` sweep on the Uno, wheels ON the floor.** Serial Monitor at 115200, line ending Newline, type `c`. It creeps the power up in steps of 5 and announces each one, so you can read off the slowest PWM that actually moves the robot - driving first, then pivoting on the spot. **Every PWM number in that sketch is still a guess** (`MIN_PWM 70` / `MAX_PWM 140`, `MIN_PWM_TURN 65` / `MAX_PWM_TURN 95`), and those guesses are exactly what forced the steer-by-time workaround. Measure the real floors and some of that complexity can come back out.
 2. **Fine-tune where it parks.** Stand where you want it to stop, read the `height` number off the live view, and put that in the **middle** slot of `_BANDS_HEIGHT` in `pi/brain.py` (`"face": (140, 180, 230)` today). The outer two are the follow and back-off thresholds: spread them wider if it fusses over nothing, tighter if it reacts too late. This is the one calibration that matters, and **it has to be redone after the camera is mounted** - the number is a position in the picture, so it moves when the camera does.
 3. **Chase the frame rate.** The camera delivers **12 fps while the Pi could run 23**, so it sits idle half the time - and nearly every problem this project has had traces back to acting on a picture that was already stale. Try a **blue USB 3 port** first, then `tools/camera_speed.py` (stop the service first) to see what a smaller capture size really delivers. Put the winner in `CAPTURE` in `pi/vision.py`.
