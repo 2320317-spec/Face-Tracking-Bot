@@ -102,18 +102,28 @@ TURN_MAX = 25       # Never turn harder than this %, however far off-center.
 #   burst   pause   burst   pause  ...
 #   0.15 s  0.25 s
 #
-# The effect: it creeps round in small steps instead of sweeping, and every pause
-# is 2-3 clean frames at 10 fps.
+# The effect: it creeps in small steps instead of sweeping, and every pause is
+# 2-3 clean frames at 10 fps.
+#
+# This applies to DRIVING as well as turning, and that matters more than it sounds:
+# a robot that drives continuously never gets a sharp picture of the person it is
+# driving toward, so it cannot tell when it has arrived. Stepping forward and
+# pausing to look is what lets it stop at the right distance instead of creeping
+# into you.
 #   Still blurry / overshoots you -> shorter PULSE_ON, or longer PULSE_OFF
-#   Too slow to keep you centred  -> longer PULSE_ON, or shorter PULSE_OFF
-#   Want the old smooth turning   -> PULSE_TURN = False
+#   Too slow                      -> longer PULSE_ON, or shorter PULSE_OFF
+#   Want the old continuous motion -> PULSE_TURN = False
 PULSE_TURN = True
-PULSE_ON = 0.15     # seconds of actually turning
-PULSE_OFF = 0.25    # seconds of standing still and looking
+PULSE_ON = 0.25     # seconds of actually moving
+PULSE_OFF = 0.22    # seconds of standing still and looking. Must be long enough for
+                    # 2-3 camera frames: at 12 fps that is about 0.2 s.
 
 
 # ---- Speeds (% of full motor speed) ------------------------------------------
-SPEED_FWD = 25      # driving toward the target. Kept deliberately low: the robot acts on
+SPEED_FWD = 30      # driving toward the target. Note this is the speed DURING a step -
+                    # the pauses mean the robot actually closes at a bit over half of it.
+                    # Real approach speed is roughly SPEED_FWD x PULSE_ON/(PULSE_ON+PULSE_OFF).
+                    # Originally: Kept deliberately low: the robot acts on
                     # pictures up to 100 ms old at 10 fps, so a fast robot overshoots and
                     # then hunts back and forth. Raise it once the room is bright and the
                     # camera manages ~20 fps.
@@ -193,7 +203,13 @@ class Follower:
         # -- No target this frame --
         if target is None:
             self.lost += 1
-            if self.lost <= LOST_GRACE:                 # just a flicker: keep doing the last thing
+            if self.lost <= LOST_GRACE:
+                # Just a flicker - keep TURNING the way we were, but stop driving.
+                # Repeating the last forward command while blind is how a follower
+                # walks into the person it is following: moving blurs the picture,
+                # the blur loses the face, and "keep doing the last thing" then means
+                # "keep driving at them". Turning blind is harmless; driving is not.
+                self.cmd = (0, self.cmd[1])
                 return self.cmd
             if self.state not in ("search", "idle"):     # really gone: start searching
                 self.state, self.search_start = "search", now
@@ -229,13 +245,18 @@ class Follower:
             turn = round(KP * err / (W / 2))
             turn = max(-TURN_MAX, min(TURN_MAX, turn))
             self.last_side = 1 if err > 0 else -1   # remember the side (the search starts that way)
-            if PULSE_TURN and (now % (PULSE_ON + PULSE_OFF)) >= PULSE_ON:
-                turn = 0                            # the pause half of the burst: look, don't turn
 
             # Slow down while turning, the further off-center the slower - so the robot
             # CURVES toward you instead of stopping to spin. It never stops driving.
             lean = min(1.0, abs(err) / ALIGN_ZONE)
             fwd = round(fwd * (1 - (1 - TURN_SLOWDOWN) * lean))
+
+        # -- 3. Move in steps, with a pause to look --
+        # Both wheels stop during the pause, so the camera gets a sharp picture of
+        # where you are before the next step. Without this the robot is blurring its
+        # own view every moment it is moving.
+        if PULSE_TURN and (now % (PULSE_ON + PULSE_OFF)) >= PULSE_ON:
+            fwd = turn = 0
 
         self.cmd = (fwd, turn)
         return self.cmd
