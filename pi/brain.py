@@ -275,12 +275,13 @@ class Follower:
         if target is None:
             self.lost += 1
             if self.lost <= LOST_GRACE:
-                # Just a flicker - keep TURNING the way we were, but stop driving.
-                # Repeating the last forward command while blind is how a follower
-                # walks into the person it is following: moving blurs the picture,
-                # the blur loses the face, and "keep doing the last thing" then means
-                # "keep driving at them". Turning blind is harmless; driving is not.
-                self.cmd = (0, self.cmd[1])
+                # Just a flicker - STAND STILL. Not "carry on doing the last thing":
+                # the robot's own movement is what blurs the picture and loses the
+                # face, so repeating the last command means it keeps moving on the
+                # strength of a view it no longer has. Driving that way walks it into
+                # you; turning that way swings it straight past you. Both were real
+                # bugs. The rule is simply: if it cannot see, it does not move.
+                self.cmd = (0, 0)
                 return self.cmd
             # Really gone now. First just wait and watch - you have probably only
             # turned your head, and a robot that sweeps off looking for you the
