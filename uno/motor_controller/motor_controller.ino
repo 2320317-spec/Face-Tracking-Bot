@@ -98,6 +98,31 @@ const int MAX_PWM_TURN = 95;         // fastest it may ever pivot - well under M
 const float RAMP_UP = 180.0;
 const float RAMP_DOWN = 700.0;
 
+// ---- Battery monitor (optional - needs two resistors) -----------------------
+// The analog pins read 0-5 V. A charged 2-cell pack is 8.4 V, which would damage
+// one. Two EQUAL resistors in a line from + to GND put exactly HALF the voltage
+// at the point between them, and half of 8.4 is 4.2 - safely inside range.
+//
+//      battery +  ---[ R1 10k ]---+---[ R2 10k ]---  GND
+//                                 |
+//                                 +------------->  A0
+//
+// Any equal pair from 4.7k to 47k works. 10k draws 0.4 mA, which is nothing next
+// to the amps the motors pull. Battery GND and Uno GND must be the same ground -
+// on this build the shield already joins them.
+//
+// NEVER run the battery straight into A0. The resistors are the whole protection.
+//
+// Leave BATTERY false until they are actually fitted: an unconnected pin floats
+// and reads drifting noise, and an invented battery reading is worse than none.
+const bool  BATTERY   = false;   // <-- set true once the divider is wired to A0
+const int   BATT_PIN  = A0;
+const float BATT_DIV  = 2.0;     // equal resistors -> the pin sees half. 10k/10k = 2.0
+const float BATT_REF  = 5.0;     // the 5 V rail is what the ADC measures against
+const float BATT_TRIM = 1.000;   // accuracy fix: multimeter volts / reported volts
+const unsigned long BATT_EVERY = 2000;    // how often to report, in milliseconds
+const unsigned long BATT_SETTLE = 400;    // wait this long after stopping before believing it
+
 // Failsafe. No command for this long -> stop. Must be longer than the time between
 // commands from the Pi (it sends one per camera frame, ~20 per second = every 50 ms).
 const unsigned long TIMEOUT_MS = 500;
@@ -196,6 +221,44 @@ void stopNow() {
 }
 
 // =============================================================================
+// Battery. Measured ONLY while the wheels are stopped, and only after they have
+// been stopped for a moment.
+//
+// A battery sags under load: a pack that rests at 7.4 V can read 6.8 V with both
+// motors pulling, and that lower number says nothing about how much charge is
+// left - it is mostly a measure of how hard the motors are working. The resting
+// voltage is the one that means something, so that is the only one reported.
+//
+// Sends one line every BATT_EVERY milliseconds:   B 7.82
+// The Pi picks these out and ignores everything else this sketch prints.
+// =============================================================================
+void battery() {
+  if (!BATTERY) return;
+
+  static float resting = 0;                    // smoothed, so one noisy read cannot alarm anyone
+  static unsigned long restingSince = 0;       // when the wheels last came to a stop
+  static unsigned long lastSent = 0;
+
+  if (!stopped) {
+    restingSince = 0;                          // driving: this reading would be a sag, not a level
+  } else {
+    if (restingSince == 0) restingSince = millis();
+    if (millis() - restingSince > BATT_SETTLE) {
+      long sum = 0;
+      for (byte i = 0; i < 8; i++) sum += analogRead(BATT_PIN);   // average out the noise
+      float volts = (sum / 8.0) * BATT_REF / 1023.0 * BATT_DIV * BATT_TRIM;
+      resting = (resting == 0) ? volts : resting * 0.8 + volts * 0.2;
+    }
+  }
+
+  if (resting > 0 && millis() - lastSent >= BATT_EVERY) {
+    lastSent = millis();
+    Serial.print(F("B "));
+    Serial.println(resting, 2);
+  }
+}
+
+// =============================================================================
 // The "t" bench test: one wheel at a time, so you can name them and catch a
 // motor that is wired backwards. Wheels off the ground before running this.
 // =============================================================================
@@ -265,12 +328,13 @@ void setup() {
   Serial.begin(115200);                        // must match BAUD in pi/follow.py
   // The version line is here so you can always tell WHICH sketch is on the board.
   // Bump it whenever you change the motor settings.
-  Serial.println(F("FollowBot motor controller  v3 - soft ramp, separate turning power"));
+  Serial.println(F("FollowBot motor controller  v4 - soft ramp, separate turning power, battery"));
   Serial.println(F("Type TWO NUMBERS, for example:"));
   Serial.println(F("  50 0  forward     0 50  spin right     0 -50  spin left"));
   Serial.println(F("  -40 0 backwards   50 30 curve right    0 0    stop"));
   Serial.println(F("  t     test each wheel on its own"));
   Serial.println(F("  c     find the slowest PWM that moves it (wheels ON the floor)"));
+  if (BATTERY) Serial.println(F("  battery monitor ON - reporting \"B <volts>\" every 2 s"));
 }
 
 void loop() {
@@ -307,4 +371,6 @@ void loop() {
   } else {
     ramp();                                    // otherwise ease toward the asked-for speed
   }
+
+  battery();                                   // does nothing unless BATTERY is true
 }

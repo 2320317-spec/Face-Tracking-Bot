@@ -229,6 +229,16 @@
                box-shadow: none; }              /* inside the dead zone = not driving */
   #readout { font-size: 11px; letter-spacing: .12em; color: var(--dim); }
 
+  /* ---- battery ---- */
+  #batt { margin: 2px 0 12px; }
+  .battrow { display: flex; justify-content: space-between; align-items: baseline; font-size: 11px;
+             letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .battrow i { font-style: normal; color: var(--dim); margin-left: 6px; }
+  .battrow b { font-size: 13px; letter-spacing: .04em; }
+  .battbar { height: 4px; margin-top: 6px; border-radius: 3px; overflow: hidden;
+             background: rgba(255, 255, 255, .07); }
+  .battbar i { display: block; height: 100%; border-radius: 3px; transition: width .4s, background .4s; }
+
   /* ================= 6. The always-there STOP bar (phones) ================== */
   #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: 10px;
          padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
@@ -435,6 +445,10 @@
 
       <div class="glass panel">
         <div class="label">System</div>
+        <div id="batt" hidden>
+          <div class="battrow"><span>Battery <i id="battword"></i></span><b id="battv" class="mono">—</b></div>
+          <div class="battbar"><i id="battfill"></i></div>
+        </div>
         <div class="note" id="info">…</div>
       </div>
     </div>
@@ -546,6 +560,24 @@ function show(s) {
     ? "Follows <b>you only</b> and ignores everyone else.<br>Tap your face in the feed = “this is me”."
     : "Follows the <b>biggest face</b> it can see, whoever that is.";
 
+  // battery. Absent (null) whenever no monitor is fitted, so the whole row hides.
+  const batt = $("#batt");
+  if (s.volts == null) { batt.hidden = true; }
+  else {
+    batt.hidden = false;
+    const v = s.volts;
+    // A 2-cell pack: 8.4 V charged, 6.0 V is as low as lithium should ever go.
+    const [word, colour] = v >= 7.6 ? ["Good",       "#34d399"]
+                         : v >= 7.0 ? ["OK",         "#38bdf8"]
+                         : v >= 6.6 ? ["Low",        "#fbbf24"]
+                                    : ["Charge now", "#f43f5e"];
+    $("#battv").textContent = v.toFixed(2) + " V";
+    $("#battv").style.color = colour;
+    $("#battword").textContent = word;
+    $("#battfill").style.width = Math.max(2, Math.min(100, (v - 6.0) / 2.4 * 100)) + "%";
+    $("#battfill").style.background = colour;
+  }
+
   // plain-English system notes
   const info = [];
   if (s.uno === false) info.push('<span class="warn">⚠ No Uno connected (--dry) — the wheels get nothing.</span>');
@@ -554,6 +586,8 @@ function show(s) {
     else if (s.knows_you) info.push(`Knows your face · <b>${s.prints}/${s.learn_max}</b> snapshots learned.`);
     else info.push("Doesn't know you yet — tap your face, or the next face it sees becomes you.");
   }
+  if (s.volts != null && s.volts < 7.0)
+    info.push(`<span class="warn">⚠ Battery ${s.volts.toFixed(2)} V — everything gets slow and weak before it stops. Charge it.</span>`);
   if (snapshots) info.push("Live view: still pictures — this browser wouldn't show the video stream.");
   info.push(on ? "Motors armed." : "Motors idle — press Engage when the robot is on the floor.");
   $("#info").innerHTML = info.join("<br>");

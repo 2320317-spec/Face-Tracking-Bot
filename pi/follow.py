@@ -72,6 +72,53 @@ def send(uno, fwd, turn):
     if uno is not None:
         uno.write(f"{fwd} {turn}\n".encode())
 
+class UnoVoice:
+    """Listens to the Uno.
+
+    Until now the link was one-way: the Pi talked, the Uno obeyed. The Uno now
+    also reports its battery voltage, as one line every couple of seconds:
+
+        B 7.82
+
+    That is the RESTING voltage - the Uno only measures it while the wheels are
+    stopped, because a pack sags under load and the sagging number says more about
+    the motors than about how much charge is left.
+
+    Everything else the Uno prints (its version banner, the `t` and `c` routines)
+    is ignored, so you can still use the Serial Monitor without confusing this.
+    """
+
+    STALE = 30.0            # seconds. No reading for this long = we have no idea.
+
+    def __init__(self):
+        self.volts = None
+        self.at = 0.0
+        self._buf = b""
+
+    def listen(self, uno):
+        """Call once a frame. Returns immediately - the port has timeout=0."""
+        if uno is None:
+            return
+        try:
+            self._buf += uno.read(256)
+        except Exception:                       # unplugged mid-run: not worth crashing over
+            return
+        while b"\n" in self._buf:
+            raw, self._buf = self._buf.split(b"\n", 1)
+            text = raw.decode("ascii", "ignore").strip()
+            if text.startswith("B "):
+                try:
+                    self.volts, self.at = float(text[2:]), time.time()
+                except ValueError:
+                    pass
+        self._buf = self._buf[-64:]             # a line that never ends must not grow forever
+
+    def reading(self):
+        """Volts, or None when there is no monitor fitted (or it has gone quiet)."""
+        if self.volts is None or time.time() - self.at > self.STALE:
+            return None
+        return self.volts
+
 
 def setup_button(shared):
     """Optional backup Start/Stop button on the Pi's GPIO pins. Does nothing on a laptop."""
@@ -273,6 +320,7 @@ def main():
 
     cam = Camera(args.camera)
     uno = None if args.dry else open_uno(args.port)
+    voice = UnoVoice()                      # the Uno's battery reports come back here
     tools = FaceTools()                     # the face models
     lock = FaceLock(tools)                  # Smart mode's memory: where you are, and who you are
     bot = Follower()                        # the brain
@@ -289,6 +337,7 @@ def main():
     try:
         while True:
             # ---- 1. SEE ----
+            voice.listen(uno)               # pick up the Uno's battery line, if any
             frame = cam.read()
             if frame is None:                           # camera stopped sending: stop the wheels
                 send(uno, 0, 0)
@@ -389,6 +438,7 @@ def main():
                 "cmd": f"{fwd} {turn}", "fps": round(fps, 1), "faces": len(faces),
                 "knows_you": lock.knows_you(), "prints": len(lock.prints), "learn_max": LEARN_MAX,
                 "recognizer": tools.recognizer is not None, "uno": uno is not None,
+                "volts": voice.reading(),               # None = no battery monitor fitted
                 "move": player.name,                    # which trick is playing, or nothing
                 "gesture": obeying, "seen": gesture,    # obeyed / seen this frame
                 "hold": round(reader.progress(), 2),    # how far a new gesture has proved itself
