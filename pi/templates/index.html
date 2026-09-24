@@ -225,6 +225,8 @@
           background: rgba(var(--state), .22); border: 1px solid rgba(var(--state), .5);
           box-shadow: 0 0 26px rgba(var(--state), .35); pointer-events: none; transition: left .1s, top .1s; }
   #pad.held #knob { transition: none; }        /* follow the finger with no lag */
+  #knob.idle { background: rgba(255, 255, 255, .05); border-color: rgba(255, 255, 255, .16);
+               box-shadow: none; }              /* inside the dead zone = not driving */
   #readout { font-size: 11px; letter-spacing: .12em; color: var(--dim); }
 
   /* ================= 6. The always-there STOP bar (phones) ================== */
@@ -655,33 +657,80 @@ view.onerror = () => {
 
 /* ---- Joystick -----------------------------------------------------------------
    Up = forward, sideways = turn. Sent 10x a second while held; the robot stops by
-   itself if the updates stop arriving (MANUAL_TIMEOUT in follow.py). */
-const pad = $("#pad"), knob = $("#knob");
-let cmd = null;
+   itself if the updates stop arriving (MANUAL_TIMEOUT in follow.py).
 
-function setKnob(x, y) {                        // x, y from -1 to 1
-  knob.style.left = (50 + x * 36) + "%";
-  knob.style.top  = (50 + y * 36) + "%";
-  const fwd = Math.round(-y * 100), turn = Math.round(x * 100);
+   Four things make it steerable with a thumb you cannot see past:
+
+   GRAB, DON'T JUMP.  Touching the pad does nothing on its own - the command comes
+   from how far you have moved SINCE you touched down. Tapping near the rim used to
+   mean instant full speed, which is how you drive a robot into a wall.
+
+   DEAD ZONE.  The middle 12% means "stopped", so a thumb resting roughly in the
+   centre really does stop. The knob goes grey in there, so you can see which it is.
+
+   AXIS SNAP.  Within 10 degrees of straight up, the turn is forced to exactly 0 -
+   holding a dead straight line by hand is otherwise near impossible. Same sideways,
+   which gives a clean pivot with no forward creep.
+
+   EXPO.  The stick is deliberately not linear: most of its travel is spent on the
+   slow end, because that is where the resolution is needed. The Uno cannot turn the
+   motors slower than MIN_PWM, so the bottom of the range is coarse no matter what -
+   this at least gives you a big, easy-to-hold region that means "creep". */
+const pad = $("#pad"), knob = $("#knob");
+const DEAD  = 0.12;             // fraction of the throw that means "stopped"
+const SNAP  = Math.PI / 18;     // 10 degrees - how near an axis counts as ON it
+const EXPO  = 0.75;             // 0 = linear, 1 = fully cubic
+const CRAWL = 0.02;             // the command you get the instant you leave the dead
+                                // zone. Without it, expo makes a second dead band.
+let cmd = null, grab = null;
+
+function apply(x, y) {          // x, y = how far from the middle, -1..1
+  let d = Math.hypot(x, y);
+  if (d > 1) { x /= d; y /= d; d = 1; }             // keep it inside the circle
+
+  const live = d >= DEAD;
+  let fwd = 0, turn = 0;
+  if (live) {
+    // DETENT. Pull the direction toward the nearest axis so that straight ahead and
+    // a clean pivot are easy to hold. Inside SNAP it locks on; outside, it eases off
+    // smoothly and reaches the true angle at the 45 degree diagonal - so there is no
+    // jump as you leave the detent, which a plain "if near, zero it" would give you.
+    let a = Math.atan2(x, -y);                       // 0 = straight up
+    const axis = Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
+    const off = a - axis;
+    a = axis + (Math.abs(off) <= SNAP ? 0
+                : Math.sign(off) * (Math.abs(off) - SNAP) * (Math.PI / 4) / (Math.PI / 4 - SNAP));
+
+    const s = (d - DEAD) / (1 - DEAD);               // 0 at the dead zone edge, 1 at the rim
+    const e = CRAWL + (1 - CRAWL) * (EXPO * s * s * s + (1 - EXPO) * s);
+    fwd  = Math.round(Math.cos(a) * e * 100);
+    turn = Math.round(Math.sin(a) * e * 100);
+    x = Math.sin(a) * d; y = -Math.cos(a) * d;       // draw the knob on the detented angle
+  }
+  knob.classList.toggle("idle", !live);
+  knob.style.left = (50 + x * 36) + "%";                 // the knob follows your thumb,
+  knob.style.top  = (50 + y * 36) + "%";                 // not the (curved) command
   $("#readout").textContent = `FWD ${fwd} · TURN ${turn}`;
   return {fwd, turn};
 }
 function fromPointer(e) {
-  const r = pad.getBoundingClientRect();
-  let x = (e.clientX - r.left) / r.width * 2 - 1;
-  let y = (e.clientY - r.top) / r.height * 2 - 1;
-  const d = Math.hypot(x, y);
-  if (d > 1) { x /= d; y /= d; }                // keep the knob inside the circle
-  cmd = setKnob(x, y);
+  const R = pad.getBoundingClientRect().width / 2;   // a full push = one radius from the grab
+  cmd = apply((e.clientX - grab.x) / R, (e.clientY - grab.y) / R);
 }
 function release() {
   pad.classList.remove("held");
-  setKnob(0, 0);
+  grab = null;
+  apply(0, 0);
   cmd = null;
   post("/api/drive", {fwd: 0, turn: 0});        // stop now, don't wait for the timeout
 }
-pad.onpointerdown = e => { pad.setPointerCapture(e.pointerId); pad.classList.add("held"); fromPointer(e); };
-pad.onpointermove = e => { if (pad.hasPointerCapture(e.pointerId)) fromPointer(e); };
+pad.onpointerdown = e => {
+  pad.setPointerCapture(e.pointerId);
+  pad.classList.add("held");
+  grab = {x: e.clientX, y: e.clientY};
+  cmd = apply(0, 0);                            // landing on the pad is not a command
+};
+pad.onpointermove = e => { if (grab && pad.hasPointerCapture(e.pointerId)) fromPointer(e); };
 pad.onpointerup = pad.onpointercancel = release;
 setInterval(() => { if (cmd) post("/api/drive", cmd); }, 100);
 
@@ -694,7 +743,7 @@ function keyDrive() {
   let x = 0, y = 0;
   keys.forEach(k => { x += KEYMAP[k][0]; y += KEYMAP[k][1]; });
   pad.classList.add("held");
-  cmd = setKnob(Math.max(-1, Math.min(1, x)), Math.max(-1, Math.min(1, y)));
+  cmd = apply(Math.max(-1, Math.min(1, x)), Math.max(-1, Math.min(1, y)));
 }
 addEventListener("keydown", e => {
   const k = e.key.toLowerCase();
