@@ -42,7 +42,7 @@ Updated 24 September 2026. Short status of the build: what works, what's measure
 
 ## Things to know
 
-- **Camera number:** `1` on the laptop, `0` on the Pi (`--camera`).
+- **Camera number:** `0` on both now — the user set `CAMERA = 0` in steps 05 and 07. It used to be `1` on the laptop, so if a step script shows the wrong camera, that is the one line to change.
 - **The Pi:** `followbot.local`, or the address `hostname -I` prints (was 192.168.1.19). Dashboard on port 8000.
 - **The repository is private**, so the Pi needs a read-only token to `git pull`.
 - **Face models aren't on GitHub** (`.gitignore`) — `deploy/setup_pi.sh` downloads them, or see `pi/models/README.md`.

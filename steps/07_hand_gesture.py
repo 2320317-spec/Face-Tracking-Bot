@@ -31,7 +31,7 @@ from brain import W, H
 
 
 # ---- Settings ---------------------------------------------------------------------
-CAMERA = 1              # which camera: 0 = first (usually the built-in), 1 = second
+CAMERA = 0              # which camera: 0 = first (usually the built-in), 1 = second
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 GREEN, GRAY, YELLOW, CYAN, ORANGE = ((0, 255, 0), (160, 160, 160), (0, 220, 255),
