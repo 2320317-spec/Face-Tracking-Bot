@@ -69,6 +69,7 @@ Updated 24 September 2026. Short status of the build: what works, what's measure
 ## Ideas parked for later
 
 - **One local web page for everything:** the dashboard plus HSV tuning and the simulator as a control panel.
+- **[Hand gestures](hand-gestures.md)** — open palm to stop, fist to hold, pointing to go. Two-stage palm + 21-landmark models from OpenCV Zoo (no new library), gesture from the geometry of those points. Would only obey the person Smart mode is locked onto. Nothing built.
 - **[LLM companion](llm-companion.md)** — a local model on the laptop that takes spoken/typed commands, explains the robot's own decisions, and writes new dances. Written up in full; the user liked all six features. Nothing built.
 - **Follow your body** once your face is found, so it can follow you when you turn away.
 - **Brighten dark faces** (CLAHE) if the demo room's ceiling lights make faces hard to detect.
