@@ -51,8 +51,8 @@ W, H = 480, 360
 #   Goes forward, back, forward...  -> move BACKUP further above STOP
 #   Faces: keep RESUME at 30 or more (faces under ~26 px aren't detected)
 BANDS = {
-    "color": (111, 152, 185),   # 20 cm target:     ~0.75 m / 0.55 m / 0.45 m
-    "face":  (83, 113, 139),    # face (~15 cm):    ~0.75 m / 0.55 m / 0.45 m
+    "color": (92, 104, 119),    # 20 cm target:     ~0.90 m / 0.80 m / 0.70 m
+    "face":  (69, 78, 89),      # face (~15 cm):    ~0.90 m / 0.80 m / 0.70 m
 }
 # NOTE for face mode: following this close only works if the camera can SEE your face
 # from there. On a table, level with a seated person, it is fine - that is how these
