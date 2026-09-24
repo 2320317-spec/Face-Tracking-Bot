@@ -1,6 +1,6 @@
 # Where the project stands
 
-Updated 24 September 2026. Short status of the build: what works, what's measured, what's left.
+Updated 25 September 2026. Short status of the build: what works, what's measured, what's left.
 
 ## Done
 
@@ -88,19 +88,17 @@ The eight `Tuning` rows above are the history; this is the summary.
 
 ## Next
 
-1. **Try gesture mode**, first on the laptop (`.venv/Scripts/python steps/07_hand_gesture.py`, no robot needed), then on the Pi. Check left/right feel the right way round — if not, set `POINT_FLIP = True` in `pi/gestures.py`. Speeds are `GESTURE_FWD` / `GESTURE_TURN` / `GESTURE_BACK` in the same file.
-2. **Test the new tuning on the floor** (waiting on the power bank - the Pi is on a wall charger right now, so it can't move freely). Two things to judge:
-   - does it settle nicely at 0.65 m, and does the turn-stop-look search find you?
-   - **does it ever whip past you when you step quickly to one side?** At `TURN_MAX = 60` the robot spins ~220 deg/s, which at 10 fps means the picture jumps ~22 deg between frames - the face blurs, detection fails, and `LOST_GRACE` keeps it turning blind for up to 5 frames. Proposed fix if it misbehaves: `KP = 45`, `TURN_MAX = 30` (~110 deg/s). **Claude offered this, user chose to test first.**
-
-2. **Try the tricks in the simulator** (`steps/04b_simulator.py`, keys 1–4). Written and tested, but the user hasn't watched them yet. If the dance feels too slow or twitchy, `BEAT` in `pi/moves.py` is the one number that sets the rhythm.
-3. **The all-in-one web page** — fold the HSV tuner and the top-view simulator into the dashboard. The user picked this as the next task. Pure code, no hardware.
-4. **Step 9 — mount the camera. The height matters now.** At 20 cm up and tilted 30 deg, the frame covers only 0.28-1.08 m above the floor at 0.65 m - hip height, so a standing person's face is out of shot and face mode cannot work at the new close range. **About 48 cm up and tilted 45 deg** covers 0.74-2.12 m at 0.65 m, which works all the way in. (Sitting at a desk the low mount is fine, which is why close testing works today.)
-5. **Step 10 — calibrate** the distance bands and `KP` on the floor, then re-tune HSV in the demo room. A **distance bar** overlay (resume / stop / back-up bands with a marker) was offered for this step — add it then.
+1. **Run the `c` sweep on the Uno, wheels ON the floor.** Serial Monitor at 115200, line ending Newline, type `c`. It creeps the power up in steps of 5 and announces each one, so you can read off the slowest PWM that actually moves the robot - driving first, then pivoting on the spot. **Every PWM number in that sketch is still a guess** (`MIN_PWM 70` / `MAX_PWM 140`, `MIN_PWM_TURN 65` / `MAX_PWM_TURN 95`), and those guesses are exactly what forced the steer-by-time workaround. Measure the real floors and some of that complexity can come back out.
+2. **Fine-tune where it parks.** Stand where you want it to stop, read the `height` number off the live view, and put that in the **middle** slot of `_BANDS_HEIGHT` in `pi/brain.py` (`"face": (140, 180, 230)` today). The outer two are the follow and back-off thresholds: spread them wider if it fusses over nothing, tighter if it reacts too late. This is the one calibration that matters, and **it has to be redone after the camera is mounted** - the number is a position in the picture, so it moves when the camera does.
+3. **Chase the frame rate.** The camera delivers **12 fps while the Pi could run 23**, so it sits idle half the time - and nearly every problem this project has had traces back to acting on a picture that was already stale. Try a **blue USB 3 port** first, then `tools/camera_speed.py` (stop the service first) to see what a smaller capture size really delivers. Put the winner in `CAPTURE` in `pi/vision.py`.
+4. **Try gesture mode on the Pi.** It runs at ~15 fps on the laptop (`.venv/Scripts/python steps/07_hand_gesture.py`, no robot needed). On the robot, check left and right feel the right way round - if pointing left sends it right, set `POINT_FLIP = True` in `pi/gestures.py`. Speeds are `GESTURE_FWD` / `GESTURE_TURN` / `GESTURE_BACK` in the same file.
+5. **Watch the tricks in the simulator** (`steps/04b_simulator.py`, keys 1-4). Written and timing-checked against the motion model, but nobody has actually looked at them. If the dance feels slow or twitchy, `BEAT` in `pi/moves.py` is the one number that sets the rhythm.
+6. **Step 9 - mount the camera. The height matters.** At 20 cm up and tilted 30 deg, the frame covers only 0.30-1.19 m above the floor at the distance it now parks at - hip height, so a standing person's face is out of shot entirely. **About 48 cm up and tilted 45 deg** covers 0.80-2.31 m there, which works for a standing adult all the way in. (Sitting at a desk the low mount is fine, which is why close testing works today.) Two things follow from mounting it: redo item 2, and note that judging distance by height is **person-specific** - a taller person's chin sits higher in the frame, so the robot parks further away from them. If that matters for the demo, calibrate for whoever will be standing in front of it.
+7. **Step 10 - calibrate in the demo room itself.** Re-tune HSV where the demo will happen (`tools/hsv_tune.py`), and redo item 2 under that room's lighting. Light level changes the frame rate, and the frame rate changes how the robot behaves - so a calibration done in a bright room is not the one you want in a dim hall.
+8. **The all-in-one web page** - fold the HSV tuner and the top-view simulator into the dashboard. Pure code, no hardware needed; the user picked this as the next thing to build.
 
 ## Ideas parked for later
 
-- **One local web page for everything:** the dashboard plus HSV tuning and the simulator as a control panel.
 - **Gestures: only obey the person Smart mode knows** — today gesture mode obeys the nearest hand, whoever it belongs to. Verifying identity needs face detection running too, which is what gesture mode deliberately avoids. See [the write-up](hand-gestures.md).
 - **[LLM companion](llm-companion.md)** — a local model on the laptop that takes spoken/typed commands, explains the robot's own decisions, and writes new dances. Written up in full; the user liked all six features. Nothing built.
 - **Follow your body** once your face is found, so it can follow you when you turn away.
