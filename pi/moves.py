@@ -33,11 +33,11 @@ import time
 # below is written at the original pace and divided by TEMPO, so this is the only
 # line you need to touch.
 #   1.00  the pace the tricks were first written at
-#   1.15  15% faster - where they are now
+#   1.30  30% faster - where they are now
 # Careful going much past this: see the frame-rate note at the bottom of the
 # settings. The robot only decides ~12 times a second, and a step shorter than
 # one decision can be stretched or skipped entirely.
-TEMPO = 1.15
+TEMPO = 1.30
 
 # Spinning is the one trick where "faster" cannot mean "stop sooner" - it has to
 # come back round to face you. So TEMPO spins it HARDER and it finishes earlier,
@@ -64,16 +64,17 @@ HOLD = 0.20 / TEMPO     # the pause each trick ends on
 # A step only exists if the robot is awake to run it. In a dim room it decides
 # about 12 times a second, so one decision is 83 ms, and a step of 0.13 s is
 # 1.6 decisions - it may be sampled once or twice, which is what makes a rhythm
-# come out lopsided. At TEMPO 1.15 the shortest steps are:
+# come out lopsided. At TEMPO 1.30 the shortest steps are:
 #
-#   GAP        (the pause between steps)  0.07 s   0.8 decisions   under one
-#   BEAT / 2   (the dance's double steps) 0.13 s   1.6 decisions   marginal
-#   SHAKE_TIME (one flick of the shake)   0.16 s   1.9 decisions   marginal
+#   GAP        (the pause between steps)  0.06 s   0.7 decisions   under one
+#   BEAT / 2   (the dance's double steps) 0.12 s   1.4 decisions   under two
+#   SHAKE_TIME (one flick of the shake)   0.14 s   1.7 decisions   under two
 #
-# GAP has been under one decision since the tricks were written, so the dance
-# steps have never been reliably separated - this does not make it worse. The
-# real fix for both is more frames (see docs/progress.md, "chase the frame rate"),
-# not a slower TEMPO. If the dance looks ragged on the floor, try TEMPO = 1.10.
+# At 12 fps this is past the point where the rhythms survive: the shake now
+# alternates 1 and 2 decisions per flick instead of an even 2, and the dance
+# loses its pauses entirely. At 20 fps every trick comes out even again, so the
+# real fix is more frames (docs/progress.md, "chase the frame rate"), not a
+# slower TEMPO. If they look ragged before you get there, drop back to 1.15.
 
 
 def _step(turn, seconds):
