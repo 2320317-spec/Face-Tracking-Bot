@@ -99,7 +99,8 @@ On Linux or the Pi, use `.venv/bin/python` instead of `.venv\Scripts\python`. In
 
 ## Documentation
 
-- [Where the project stands](docs/progress.md) — what works, measured speeds, what's left. **Start here.**
+- [Documentation](docs/documentation.md) — the write-up: what it is made of, how the parts fit together, and everything that went wrong on the way. **Start here.**
+- [Where the project stands](docs/progress.md) — what works, measured speeds, what's left.
 - [Build plan](docs/following-robot-plan.md) — design, parts, wiring, code reference, build sequence, troubleshooting.
 - [Raspberry Pi setup](docs/pi-setup.md) — step by step, from a blank SD card to a checked Pi.
 - [LLM companion](docs/llm-companion.md) — idea, not built: talking to the robot with a local model on the laptop.
