@@ -14,6 +14,7 @@ Drawn during the 25 September walkthrough. Each one is a **standalone SVG** — 
 | [`02-facelock-ladder.svg`](02-facelock-ladder.svg) | How Smart mode decides which face is you: three tests in order of cost, cheapest first, audited every 5th frame |
 | [`03-distance-by-height.svg`](03-distance-by-height.svg) | The three horizontal lines, and why there are three and not one |
 | [`04-steering-by-duration.svg`](04-steering-by-duration.svg) | One 0.47 s cycle: driving is continuous, turning happens in nudges of 0.06–0.20 s |
+| [`05-face-pipeline.svg`](05-face-pipeline.svg) | What YuNet and SFace each do — detection finds faces, recognition tells them apart — and why only one of them runs every frame |
 
 To use one in a document: `![](docs/images/01-system-architecture.svg)`
 
