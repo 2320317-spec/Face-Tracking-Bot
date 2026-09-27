@@ -99,6 +99,7 @@ On Linux or the Pi, use `.venv/bin/python` instead of `.venv\Scripts\python`. In
 
 ## Documentation
 
+- [How I built it](docs/how-i-built-it.md) — the story: what I did day by day, the decisions, what went wrong and what each failure taught me.
 - [Documentation](docs/documentation.md) — the write-up: what it is made of, how the parts fit together, and everything that went wrong on the way. **Start here.**
 - [Where the project stands](docs/progress.md) — what works, measured speeds, what's left.
 - [Build plan](docs/following-robot-plan.md) — design, parts, wiring, code reference, build sequence, troubleshooting.

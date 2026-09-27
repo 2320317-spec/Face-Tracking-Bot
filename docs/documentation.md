@@ -1,6 +1,6 @@
 # FollowBot — a face-following robot
 
-**Myke Lhowelle Marundan** · September 2026
+**Myke Lhowelle S. Marundan** · September 2026
 
 A two-wheeled robot that finds me with a webcam, works out whether I am too close or too far, and drives itself to the right distance. It follows a colour, or a face, or only *my* face; it takes hand signals; and it can be driven by hand from a phone. Everything runs on the robot itself — no internet, no cloud service, no API key.
 
